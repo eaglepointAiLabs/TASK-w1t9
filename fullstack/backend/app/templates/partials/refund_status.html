@@ -1,0 +1,11 @@
+<article class="card">
+  <h3>Refund {{ refund.refund_reference }}</h3>
+  <p>Status: {{ refund.status }}</p>
+  <p>Amount: ${{ "%.2f"|format(refund.requested_amount) }}</p>
+  {% if refund.hold_reason %}
+    <p class="danger-text">Risk hold: {{ refund.hold_reason }}</p>
+  {% endif %}
+  {% if refund.stepup_required == "true" and refund.status != "approved" %}
+    <p class="muted">Step-up required. Confirm with operator password and a `refund:confirm` nonce.</p>
+  {% endif %}
+</article>

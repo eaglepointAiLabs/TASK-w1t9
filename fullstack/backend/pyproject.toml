@@ -1,0 +1,15 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "B"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["unit_tests", "API_tests"]
+addopts = "-p no:cacheprovider"

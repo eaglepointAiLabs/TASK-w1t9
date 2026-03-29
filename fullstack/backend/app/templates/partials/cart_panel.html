@@ -1,0 +1,33 @@
+<div class="stack">
+  {% for item in cart["items"] %}
+    <article class="card">
+      <p><strong>{{ item.pricing_breakdown.dish_name }}</strong></p>
+      <form method="post" action="{{ url_for('orders.update_cart_item', item_id=item.id) }}" hx-patch="{{ url_for('orders.update_cart_item', item_id=item.id) }}" hx-target="#cart-panel" class="stack">
+        <input type="hidden" name="csrf_token" value="">
+        <input type="hidden" name="selected_options" value='{{ item.selected_options | tojson }}'>
+        <label>
+          Quantity
+          <input type="number" name="quantity" min="1" value="{{ item.quantity }}">
+        </label>
+        <button type="submit">Update quantity</button>
+      </form>
+      <p>Unit total: ${{ item.unit_total_price }}</p>
+      <p>Line total: ${{ item.line_total_price }}</p>
+      <pre>{{ item.pricing_breakdown | tojson(indent=2) }}</pre>
+      <form method="post" action="{{ url_for('orders.delete_cart_item', item_id=item.id) }}" hx-delete="{{ url_for('orders.delete_cart_item', item_id=item.id) }}" hx-target="#cart-panel" class="stack">
+        <input type="hidden" name="csrf_token" value="">
+        <button type="submit">Remove item</button>
+      </form>
+    </article>
+  {% else %}
+    <p>Your cart is empty.</p>
+  {% endfor %}
+  <p><strong>Cart total: ${{ cart["total_amount"] }}</strong></p>
+  {% if cart["items"] %}
+    <form method="post" action="{{ url_for('orders.checkout') }}" hx-post="{{ url_for('orders.checkout') }}" hx-target="main" hx-swap="innerHTML" class="stack">
+      <input type="hidden" name="csrf_token" value="">
+      <input type="hidden" name="checkout_key" value="{{ checkout_key }}">
+      <button type="submit">Checkout</button>
+    </form>
+  {% endif %}
+</div>

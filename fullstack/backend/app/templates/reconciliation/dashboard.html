@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Reconciliation Dashboard</h2>
+  <form method="post" action="{{ url_for('reconciliation.import_reconciliation_csv') }}" hx-post="{{ url_for('reconciliation.import_reconciliation_csv') }}" hx-target="#run-detail" class="stack">
+    <input type="hidden" name="csrf_token" value="">
+    <label>Source name <input type="text" name="source_name" value="terminal_csv"></label>
+    <label>Statement CSV
+      <textarea name="statement_csv" rows="10" placeholder="transaction_reference,amount,currency,status&#10;wechat-local-0001,10.25,USD,success"></textarea>
+    </label>
+    <button type="submit">Import statement</button>
+  </form>
+  <div class="grid">
+    <article class="card">
+      <h3>Runs</h3>
+      {% for run in runs %}
+        <p>
+          <a href="{{ url_for('reconciliation.get_run', run_id=run.id) }}">{{ run.id }}</a>
+          | {{ run.status }} | rows {{ run.total_rows }} | exceptions {{ run.exception_count }}
+        </p>
+      {% else %}
+        <p>No reconciliation runs yet.</p>
+      {% endfor %}
+    </article>
+    <div id="run-detail">
+      {% if runs %}
+        {% set run = runs[0] %}
+        {% include "reconciliation/run_detail.html" %}
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

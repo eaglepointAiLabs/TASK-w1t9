@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Authentication Required</h2>
+  <p>You need a valid session to access TablePay.</p>
+  <a class="button-link" href="{{ url_for('auth.render_login_page') }}">Open login</a>
+</section>
+{% endblock %}

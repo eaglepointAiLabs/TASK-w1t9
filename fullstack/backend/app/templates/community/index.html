@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Community</h2>
+  <p class="muted">Like, favorite, comment, report, and block directly from the live moderation-aware community feed.</p>
+  <div class="stack">
+    {% for post in posts %}
+      {% include "partials/community_post.html" %}
+    {% else %}
+      <p>No posts yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

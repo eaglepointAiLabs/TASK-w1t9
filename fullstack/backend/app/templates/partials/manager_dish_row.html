@@ -1,0 +1,19 @@
+<article class="card">
+  <h3>{{ dish.name }}</h3>
+  <p class="muted">Sort order {{ dish.sort_order }} | {% if dish.is_published %}Published{% else %}Draft{% endif %}{% if dish.is_sold_out %} | Sold out{% endif %}</p>
+  <form method="post" action="{{ url_for('catalog.publish_dish', dish_id=dish.id) }}" hx-post="{{ url_for('catalog.publish_dish', dish_id=dish.id) }}" hx-target="closest article" hx-swap="outerHTML" class="stack">
+    <input type="hidden" name="csrf_token" value="">
+    <input type="hidden" name="publish" value="{{ 'false' if dish.is_published else 'true' }}">
+    <button type="submit">{{ 'Unpublish' if dish.is_published else 'Publish' }}</button>
+  </form>
+  <form method="post" action="{{ url_for('catalog.upload_dish_image', dish_id=dish.id) }}" enctype="multipart/form-data" hx-post="{{ url_for('catalog.upload_dish_image', dish_id=dish.id) }}" hx-target="#gallery-{{ dish.id }}" class="stack image-upload-form">
+    <input type="hidden" name="csrf_token" value="">
+    <input type="file" name="image" accept="image/png,image/jpeg" required>
+    <div class="local-preview"></div>
+    <button type="submit">Upload image</button>
+  </form>
+  <div id="gallery-{{ dish.id }}">
+    {% set upload_message = None %}
+    {% include "partials/image_gallery.html" %}
+  </div>
+</article>

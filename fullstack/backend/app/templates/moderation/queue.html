@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Moderator Queue</h2>
+  <p class="muted">Review flagged items, record outcomes, and inspect full decision history.</p>
+  <div class="stack">
+    {% for item in items %}
+      <article class="card">
+        <p><strong>{{ item.target_type }}</strong> {{ item.target_id }} | {{ item.status }} | {{ item.priority }}</p>
+        <p class="muted">Latest reason: {{ item.latest_reason_code or "n/a" }}</p>
+        <form method="post" action="{{ url_for('moderation.decide_item', item_id=item.id) }}" hx-post="{{ url_for('moderation.decide_item', item_id=item.id) }}" hx-target="main" hx-swap="innerHTML" class="stack">
+          <input type="hidden" name="csrf_token" value="">
+          <label>Outcome
+            <select name="outcome">
+              <option value="dismiss">Dismiss</option>
+              <option value="warn">Warn</option>
+              <option value="hide">Hide</option>
+              <option value="remove">Remove</option>
+              <option value="suspend">Suspend</option>
+            </select>
+          </label>
+          <label>Reason code
+            <select name="reason_code">
+              {% for code in reason_codes %}
+                <option value="{{ code.code }}">{{ code.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Operator notes <input type="text" name="operator_notes" required></label>
+          <button type="submit">Record decision</button>
+        </form>
+        <div hx-get="{{ url_for('moderation.get_history', item_id=item.id) }}" hx-target="this" hx-swap="innerHTML">
+          <button type="button">View history</button>
+        </div>
+      </article>
+    {% else %}
+      <p>No queue items currently match this filter.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

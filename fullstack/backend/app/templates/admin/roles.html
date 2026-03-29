@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Role Governance</h2>
+  <p class="muted">Role changes are nonce-protected, logged, and rendered back into the page without exposing raw JSON.</p>
+  <form method="post" action="{{ url_for('moderation.change_role') }}" hx-post="{{ url_for('moderation.change_role') }}" hx-target="#role-change-status" class="stack card" data-auto-nonce-purpose="admin:role_change">
+    <input type="hidden" name="csrf_token" value="">
+    <label>Target username <input type="text" name="target_username" required></label>
+    <label>Role name <input type="text" name="role_name" required></label>
+    <label>Action
+      <select name="action">
+        <option value="grant">Grant</option>
+        <option value="revoke">Revoke</option>
+      </select>
+    </label>
+    <label>Nonce <input type="text" name="nonce" readonly required></label>
+    <button type="submit">Apply role change</button>
+  </form>
+  <div id="role-change-status">
+    {% if role_change_event %}
+      {% include "partials/role_change_status.html" %}
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

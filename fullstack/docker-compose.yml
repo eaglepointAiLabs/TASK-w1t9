@@ -1,0 +1,15 @@
+services:
+  web:
+    build:
+      context: ./backend
+    container_name: tablepay-web
+    environment:
+      TABLEPAY_ENV: production
+      SECRET_KEY: 6f5f4f92f54c4d0cb947bc65f8b2a32a_tablepay_review_session_secret
+      KEY_ENCRYPTION_SECRET: 1baf2af44c8748c882a33e80914dc701_tablepay_review_encryption_secret
+      SESSION_COOKIE_SECURE: "false"
+      ALLOW_INSECURE_HTTP: "true"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "TablePay" }}</title>
+    <script src="{{ url_for('static', filename='js/htmx-lite.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <header class="shell-header">
+      <div class="brand-lockup">
+        <a href="{{ url_for('catalog.menu_page') }}" class="brand-mark">TP</a>
+        <div class="brand-copy">
+          <p class="eyebrow">Offline-first restaurant operations</p>
+          <h1>TablePay</h1>
+          <p>Ordering, reconciliation, refunds, and governance in one local-first control room.</p>
+        </div>
+      </div>
+      <nav class="shell-nav">
+        <a class="nav-link" href="{{ url_for('catalog.menu_page') }}">Menu</a>
+        {% if current_user %}
+          <a class="nav-link" href="{{ url_for('pages.render_home') }}">Home</a>
+          <a class="nav-link" href="{{ url_for('orders.cart_page') }}">Cart</a>
+          <a class="nav-link" href="{{ url_for('community.community_page') }}">Community</a>
+          {% if "Moderator" in current_roles %}
+            <a class="nav-link" href="{{ url_for('moderation.moderation_page') }}">Moderation</a>
+          {% endif %}
+          {% if "Finance Admin" in current_roles %}
+            <a class="nav-link" href="{{ url_for('payments.finance_workspace') }}">Payments</a>
+            <a class="nav-link" href="{{ url_for('reconciliation.reconciliation_dashboard') }}">Reconciliation</a>
+            <a class="nav-link" href="{{ url_for('refunds.refund_page') }}">Refunds</a>
+            <a class="nav-link" href="{{ url_for('moderation.admin_page') }}">Admin Roles</a>
+            <a class="nav-link" href="/api/admin/ops/jobs">Ops</a>
+          {% endif %}
+          {% if "Store Manager" in current_roles %}
+            <a class="nav-link" href="{{ url_for('catalog.manager_dishes_page') }}">Manager</a>
+          {% endif %}
+          <span class="pill">{{ current_user.username }}</span>
+        {% else %}
+          <a class="nav-link" href="{{ url_for('auth.render_login_page') }}">Login</a>
+        {% endif %}
+      </nav>
+    </header>
+    <main class="shell-main">
+      <div class="notice-stack" data-ui-notices aria-live="polite"></div>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

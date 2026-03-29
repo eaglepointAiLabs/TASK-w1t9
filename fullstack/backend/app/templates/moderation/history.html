@@ -1,0 +1,14 @@
+<section class="panel">
+  <h3>History For {{ item.id }}</h3>
+  <div class="stack">
+    {% for action in item.actions %}
+      <article class="card">
+        <p><strong>{{ action.outcome }}</strong> | {{ action.reason_code }}</p>
+        <p>{{ action.operator_notes }}</p>
+        <p class="muted">{{ action.from_status or "none" }} -> {{ action.to_status }}</p>
+      </article>
+    {% else %}
+      <p>No moderation actions recorded yet.</p>
+    {% endfor %}
+  </div>
+</section>

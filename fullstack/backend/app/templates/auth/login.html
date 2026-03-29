@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel hero-panel">
+  <div class="stack">
+    <span class="eyebrow">Local-only access</span>
+    <h2>Sign in to the TablePay control room</h2>
+    <p class="muted">Cookie sessions, CSRF protection, lockout controls, and role-aware workspaces are active from first boot.</p>
+  </div>
+  <div class="grid">
+    <form method="post" action="{{ url_for('auth.login') }}" hx-post="{{ url_for('auth.login') }}" hx-swap="none" class="stack card">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>
+        Username
+        <input type="text" name="username" autocomplete="username" required>
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+    <div class="card">
+      <h3>Seeded accounts</h3>
+      <div class="stack">
+        <p><strong>Customer</strong><br><code>customer</code> / <code>Customer#1234</code></p>
+        <p><strong>Store Manager</strong><br><code>manager</code> / <code>Manager#12345</code></p>
+        <p><strong>Finance Admin</strong><br><code>finance</code> / <code>Finance#12345</code></p>
+        <p><strong>Moderator</strong><br><code>moderator</code> / <code>Moderator#123</code></p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

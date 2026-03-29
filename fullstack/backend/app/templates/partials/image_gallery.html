@@ -1,0 +1,13 @@
+{% if upload_message %}
+  <div class="notice">{{ upload_message }}</div>
+{% endif %}
+<div class="grid compact-grid">
+  {% for image in dish.images %}
+    <figure class="card">
+      <img src="/uploads/{{ image.stored_path.replace('\\', '/') }}" alt="{{ image.alt_text or dish.name }}" class="dish-image">
+      <figcaption>{{ image.filename }} {% if image.is_primary %}(Primary){% endif %}</figcaption>
+    </figure>
+  {% else %}
+    <p class="muted">No images uploaded yet.</p>
+  {% endfor %}
+</div>

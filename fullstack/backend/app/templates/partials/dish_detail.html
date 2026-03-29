@@ -1,0 +1,25 @@
+<article class="card">
+  <h3>{{ dish.name }}</h3>
+  <p>{{ dish.description }}</p>
+  <form method="post" action="{{ url_for('orders.add_cart_item') }}" hx-post="{{ url_for('orders.add_cart_item') }}" hx-target="#cart-panel" class="stack">
+    <input type="hidden" name="csrf_token" value="">
+    <input type="hidden" name="dish_id" value="{{ dish.id }}">
+    <label>
+      Quantity
+      <input type="number" name="quantity" min="1" value="1">
+    </label>
+    {% for option in dish.options %}
+      <fieldset>
+        <legend>{{ option.name }}</legend>
+        {% for value in option.values %}
+          <label>
+            <input type="{{ 'checkbox' if option.display_type == 'multi_select' else 'radio' }}" name="option_{{ option.code }}" value="{{ value.value_code }}">
+            {{ value.label }} {% if value.price_delta %}(+${{ "%.2f"|format(value.price_delta) }}){% endif %}
+          </label>
+        {% endfor %}
+      </fieldset>
+    {% endfor %}
+    <button type="submit">Add to cart</button>
+  </form>
+  <div id="selection-status-{{ dish.id }}"></div>
+</article>

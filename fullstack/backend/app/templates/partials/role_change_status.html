@@ -1,0 +1,5 @@
+<article class="card">
+  <h3>Role change recorded</h3>
+  <p><strong>{{ role_change_event.action|capitalize }}</strong> {{ role_change_event.role_name }} for {{ role_change_event.target_username }}.</p>
+  <p class="muted">Event {{ role_change_event.id }} is stored with status {{ role_change_event.status }}.</p>
+</article>

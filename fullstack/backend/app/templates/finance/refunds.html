@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Refund Workspace</h2>
+  <p class="muted">Request refunds with original-route enforcement, risk checks, and automatic nonce issuance for each submission.</p>
+  <form method="post" action="{{ url_for('refunds.create_refund') }}" hx-post="{{ url_for('refunds.create_refund') }}" hx-target="#refund-status" class="stack card" data-auto-nonce-purpose="refund:create">
+    <input type="hidden" name="csrf_token" value="">
+    <label>Transaction reference <input type="text" name="transaction_reference" required></label>
+    <label>Refund amount <input type="number" min="0" step="0.01" name="refund_amount" required></label>
+    <label>Route <input type="text" name="route" value="offline_wechat_simulator" required></label>
+    <label>Nonce <input type="text" name="nonce" readonly required></label>
+    <button type="submit">Create refund</button>
+  </form>
+  <div id="refund-status"></div>
+</section>
+{% endblock %}

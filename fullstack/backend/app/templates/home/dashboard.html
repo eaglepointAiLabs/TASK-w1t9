@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <span class="eyebrow">Role-aware workspace</span>
+  <h2>Welcome, {{ user.username }}</h2>
+  <p class="muted">Your dashboard exposes the live TablePay capabilities tied to each assigned role.</p>
+  <div class="grid">
+    {% for role in roles %}
+      <article class="card">
+        <h3>{{ role }}</h3>
+        <p>
+          {% if role == "Customer" %}
+            Browse the live menu, manage cart and checkout, and participate in community discussions.
+          {% elif role == "Store Manager" %}
+            Publish dishes, manage options, images, sell-out state, and pricing behavior.
+          {% elif role == "Finance Admin" %}
+            Handle offline payment capture, callbacks, reconciliation, refunds, and operational recovery.
+          {% elif role == "Moderator" %}
+            Review flagged items, apply reason-coded outcomes, and govern abuse controls.
+          {% endif %}
+        </p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

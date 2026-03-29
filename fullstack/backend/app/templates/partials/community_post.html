@@ -1,0 +1,73 @@
+<article class="card">
+  <h3>{{ post.title }}</h3>
+  <p>{{ post.body }}</p>
+  <p class="muted">Post {{ post.id }} by user {{ post.author_user_id }}</p>
+  <div class="grid compact-grid">
+    <form method="post" action="{{ url_for('community.toggle_like') }}" hx-post="{{ url_for('community.toggle_like') }}" hx-target="closest article" hx-swap="outerHTML" class="stack">
+      <input type="hidden" name="csrf_token" value="">
+      <input type="hidden" name="target_type" value="post">
+      <input type="hidden" name="target_id" value="{{ post.id }}">
+      <button type="submit">{{ "Unlike" if post.liked else "Like" }} ({{ post.like_count }})</button>
+    </form>
+    <form method="post" action="{{ url_for('community.toggle_favorite') }}" hx-post="{{ url_for('community.toggle_favorite') }}" hx-target="closest article" hx-swap="outerHTML" class="stack">
+      <input type="hidden" name="csrf_token" value="">
+      <input type="hidden" name="target_type" value="post">
+      <input type="hidden" name="target_id" value="{{ post.id }}">
+      <button type="submit">{{ "Unfavorite" if post.favorited else "Favorite" }} ({{ post.favorite_count }})</button>
+    </form>
+    {% if post.blocked %}
+      <form method="post" action="{{ url_for('community.unblock_user', blocked_user_id=post.author_user_id) }}" hx-delete="{{ url_for('community.unblock_user', blocked_user_id=post.author_user_id) }}" hx-target="closest article" hx-swap="outerHTML" class="stack">
+        <input type="hidden" name="csrf_token" value="">
+        <input type="hidden" name="post_id" value="{{ post.id }}">
+        <button type="submit">Unblock author</button>
+      </form>
+    {% else %}
+      <form method="post" action="{{ url_for('community.block_user') }}" hx-post="{{ url_for('community.block_user') }}" hx-target="closest article" hx-swap="outerHTML" class="stack">
+        <input type="hidden" name="csrf_token" value="">
+        <input type="hidden" name="blocked_user_id" value="{{ post.author_user_id }}">
+        <input type="hidden" name="post_id" value="{{ post.id }}">
+        <button type="submit">Block author</button>
+      </form>
+    {% endif %}
+  </div>
+  <form method="post" action="{{ url_for('community.create_comment') }}" hx-post="{{ url_for('community.create_comment') }}" hx-target="closest article" hx-swap="outerHTML" class="stack">
+    <input type="hidden" name="csrf_token" value="">
+    <input type="hidden" name="target_type" value="post">
+    <input type="hidden" name="target_id" value="{{ post.id }}">
+    <label>
+      Add a comment
+      <textarea name="body" rows="3" placeholder="Share a constructive thought." required></textarea>
+    </label>
+    <button type="submit">Post comment</button>
+  </form>
+  <form method="post" action="{{ url_for('community.create_report') }}" hx-post="{{ url_for('community.create_report') }}" hx-target="closest article" hx-swap="outerHTML" class="stack">
+    <input type="hidden" name="csrf_token" value="">
+    <input type="hidden" name="target_type" value="post">
+    <input type="hidden" name="target_id" value="{{ post.id }}">
+    <label>
+      Report reason
+      <select name="reason_code">
+        <option value="abuse">Abuse</option>
+        <option value="spam">Spam</option>
+        <option value="harassment">Harassment</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label>
+      Report details
+      <textarea name="details" rows="2" placeholder="Add context for moderators."></textarea>
+    </label>
+    <button type="submit">Submit report</button>
+  </form>
+  <div class="stack">
+    <h4>Comments</h4>
+    {% for comment in post.comments %}
+      <article class="notice">
+        <p>{{ comment.body }}</p>
+        <p class="muted">User {{ comment.author_user_id }} at {{ comment.created_at }}</p>
+      </article>
+    {% else %}
+      <p class="muted">No comments yet.</p>
+    {% endfor %}
+  </div>
+</article>
