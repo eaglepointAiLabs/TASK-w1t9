@@ -1,25 +1,85 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="panel">
+  <span class="eyebrow">Manager workspace</span>
   <h2>Dish Manager</h2>
-  <p class="muted">Create, publish, sort, and upload validated images for menu items.</p>
-  <form method="post" action="{{ url_for('catalog.create_dish') }}" hx-post="{{ url_for('catalog.create_dish') }}" hx-target="#manager-dish-table" hx-swap="afterbegin" class="stack">
+  <p class="muted">Edit the real menu structure in one place: availability windows, option groups, required rules, price deltas, publish state, and image uploads all stay on the live SSR workspace.</p>
+</section>
+<section class="panel">
+  <form
+    id="manager-editor-form"
+    method="post"
+    action="{{ url_for('catalog.create_dish') }}"
+    hx-post="{{ url_for('catalog.create_dish') }}"
+    hx-target="main"
+    hx-swap="innerHTML"
+    class="stack"
+    data-manager-editor
+    data-create-url="{{ url_for('catalog.create_dish') }}"
+    data-update-url-template="{{ url_for('catalog.update_dish', dish_id='__dish_id__') }}"
+  >
     <input type="hidden" name="csrf_token" value="">
-    <label>Name <input type="text" name="name" required></label>
-    <label>Description <textarea name="description"></textarea></label>
-    <label>Base price <input type="number" min="0" step="0.01" name="base_price" required></label>
-    <label>Category name <input type="text" name="category_name" required></label>
-    <label>Tags (comma separated) <input type="text" name="tags"></label>
-    <label>Stock quantity <input type="number" min="0" name="stock_quantity" value="0"></label>
-    <label>Sort order <input type="number" name="sort_order" value="0"></label>
-    <label><input type="checkbox" name="is_published" value="true"> Publish immediately</label>
-    <input type="hidden" name="availability_windows" value='[]'>
-    <input type="hidden" name="options" value='[{"name":"Portion Size","code":"portion_size","display_type":"single_select","rules":[{"rule_type":"single_select_required","is_required":true,"min_select":1,"max_select":1}],"values":[{"label":"Regular","value_code":"regular","price_delta":"0.00"},{"label":"Large","value_code":"large","price_delta":"2.00"}]}]'>
-    <button type="submit">Create dish</button>
+    <input type="hidden" name="render_workspace" value="true">
+    <input type="hidden" name="availability_windows" value="[]">
+    <input type="hidden" name="options" value="[]">
+    <div class="editor-toolbar">
+      <div>
+        <p class="eyebrow" data-editor-mode>Creating a new dish</p>
+        <h3 data-editor-title>Structured dish editor</h3>
+      </div>
+      <div class="action-row">
+        <button type="button" class="nav-link" data-editor-reset>Reset editor</button>
+        <button type="submit" data-editor-submit>Create dish</button>
+      </div>
+    </div>
+    <div class="grid">
+      <label>Name <input type="text" name="name" required></label>
+      <label>Category name <input type="text" name="category_name" list="dish-category-options" required></label>
+      <label>Base price <input type="number" min="0" step="0.01" name="base_price" required></label>
+      <label>Tags (comma separated) <input type="text" name="tags"></label>
+      <label>Stock quantity <input type="number" min="0" name="stock_quantity" value="0"></label>
+      <label>Sort order <input type="number" name="sort_order" value="0"></label>
+    </div>
+    <label>Description <textarea name="description" rows="3"></textarea></label>
+    <div class="check-grid">
+      <label class="checkbox-row"><input type="checkbox" name="is_published" value="true"> Publish immediately</label>
+      <label class="checkbox-row"><input type="checkbox" name="is_sold_out" value="true"> Mark sold out</label>
+      <label class="checkbox-row"><input type="checkbox" name="archived" value="true"> Archive dish</label>
+    </div>
+    <section class="stack structured-editor-section">
+      <div class="editor-toolbar">
+        <div>
+          <h3>Availability windows</h3>
+          <p class="muted">Use local trading windows instead of hidden JSON.</p>
+        </div>
+        <button type="button" data-add-window>Add window</button>
+      </div>
+      <div class="stack" data-window-list></div>
+    </section>
+    <section class="stack structured-editor-section">
+      <div class="editor-toolbar">
+        <div>
+          <h3>Option groups</h3>
+          <p class="muted">Configure selectable groups, bounded rules, and value-level price deltas.</p>
+        </div>
+        <button type="button" data-add-option-group>Add option group</button>
+      </div>
+      <div class="stack" data-option-group-list></div>
+    </section>
   </form>
+  <datalist id="dish-category-options">
+    {% for category in categories %}
+      <option value="{{ category.name }}"></option>
+    {% endfor %}
+  </datalist>
+</section>
+<section class="panel">
+  <h3>Existing dishes</h3>
   <div id="manager-dish-table" class="stack">
     {% for dish in dishes %}
       {% include "partials/manager_dish_row.html" %}
+    {% else %}
+      <p class="muted">No dishes have been created yet.</p>
     {% endfor %}
   </div>
 </section>

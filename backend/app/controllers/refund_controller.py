@@ -7,7 +7,6 @@ from flask import g, jsonify, render_template, request
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.refund_repository import RefundRepository
 from app.services.errors import AppError
-from app.services.rbac_service import RBACService
 from app.services.refund_service import RefundService
 from app.services.time_utils import serialize_utc_datetime
 
@@ -25,6 +24,8 @@ def _serialize_refund(refund):
         "status": refund.status,
         "hold_reason": refund.hold_reason,
         "stepup_required": refund.stepup_required == "true",
+        "requested_by_user_id": refund.requested_by_user_id,
+        "created_at": serialize_utc_datetime(refund.created_at),
         "approved_at": serialize_utc_datetime(refund.approved_at),
         "events": [
             {
@@ -39,12 +40,16 @@ def _serialize_refund(refund):
     }
 
 
+def _render_workspace(refunds, risk_events):
+    return render_template("finance/refunds.html", refunds=refunds, risk_events=risk_events, serialize_refund=_serialize_refund)
+
+
 def refund_page():
     redirect_response = redirect_anonymous_to_login()
     if redirect_response is not None:
         return redirect_response
-    RBACService().require_roles(g.current_roles, ["Finance Admin"])
-    return render_template("finance/refunds.html")
+    refunds, risk_events = _service().list_workspace(g.current_roles)
+    return _render_workspace(refunds, risk_events)
 
 
 def create_refund():
@@ -60,6 +65,9 @@ def create_refund():
         device_id=request.headers.get("X-Device-Id") or g.client_id,
     )
     if request.headers.get("HX-Request") == "true":
+        if str(payload.get("render_workspace", "")).lower() == "true":
+            refunds, risk_events = _service().list_workspace(g.current_roles)
+            return attach_feedback(_render_workspace(refunds, risk_events), "Refund request submitted.")
         return attach_feedback(render_template("partials/refund_status.html", refund=refund), "Refund request submitted.")
     return jsonify({"code": "ok", "message": "Refund created.", "data": _serialize_refund(refund)}), 201
 
@@ -84,8 +92,8 @@ def confirm_stepup(refund_id: str):
         nonce_value=payload.get("nonce"),
     )
     if request.headers.get("HX-Request") == "true":
-        return attach_feedback(render_template("partials/refund_status.html", refund=refund), "Step-up confirmed.")
-    return jsonify({"code": "ok", "message": "Refund step-up confirmed.", "data": _serialize_refund(refund)})
+        return attach_feedback(render_template("partials/refund_status.html", refund=refund), "Manager approval recorded.")
+    return jsonify({"code": "ok", "message": "Refund manager approval recorded.", "data": _serialize_refund(refund)})
 
 
 def list_risk_events():

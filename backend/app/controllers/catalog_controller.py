@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import json
 
 from flask import current_app, g, jsonify, render_template, request, send_from_directory
 
@@ -9,6 +10,7 @@ from app.repositories.catalog_repository import CatalogRepository
 from app.services.catalog_service import CatalogService
 from app.services.errors import AppError
 from app.services.rbac_service import RBACService
+from app.services.time_utils import serialize_utc_datetime
 
 
 def _serialize_dish(dish):
@@ -25,6 +27,16 @@ def _serialize_dish(dish):
         "is_sold_out": dish.is_sold_out,
         "stock_quantity": dish.stock_quantity,
         "sort_order": dish.sort_order,
+        "archived_at": serialize_utc_datetime(dish.archived_at),
+        "availability_windows": [
+            {
+                "day_of_week": window.day_of_week,
+                "start_time": window.start_time.strftime("%H:%M"),
+                "end_time": window.end_time.strftime("%H:%M"),
+                "is_enabled": window.is_enabled,
+            }
+            for window in dish.availability_windows
+        ],
         "images": [
             {
                 "id": image.id,
@@ -66,6 +78,17 @@ def _serialize_dish(dish):
     }
 
 
+def _render_manager_workspace(repository=None):
+    repository = repository or CatalogRepository()
+    dishes = CatalogService(repository).list_dishes(published_only=False, include_sold_out=True)
+    return render_template(
+        "manager/dishes.html",
+        dishes=dishes,
+        categories=repository.list_categories(),
+        serialize_manager_dish=_serialize_dish,
+    )
+
+
 def menu_page():
     repository = CatalogRepository()
     filters = {
@@ -94,9 +117,7 @@ def manager_dishes_page():
     if redirect_response is not None:
         return redirect_response
     RBACService().require_roles(g.current_roles, ["Store Manager"])
-    repository = CatalogRepository()
-    dishes = CatalogService(repository).list_dishes(published_only=False, include_sold_out=True)
-    return render_template("manager/dishes.html", dishes=dishes, categories=repository.list_categories())
+    return _render_manager_workspace()
 
 
 def list_dishes():
@@ -136,7 +157,12 @@ def create_dish():
     payload = _inflate_payload(payload)
     dish = CatalogService(CatalogRepository()).create_dish(payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
-        return attach_feedback((render_template("partials/manager_dish_row.html", dish=dish), 201), "Dish created.")
+        if str(payload.get("render_workspace", "")).lower() == "true":
+            return attach_feedback((_render_manager_workspace(), 201), "Dish created.")
+        return attach_feedback(
+            (render_template("partials/manager_dish_row.html", dish=dish, serialize_manager_dish=_serialize_dish), 201),
+            "Dish created.",
+        )
     return jsonify({"code": "ok", "message": "Dish created.", "data": _serialize_dish(dish)}), 201
 
 
@@ -145,7 +171,9 @@ def update_dish(dish_id: str):
     payload = _inflate_payload(payload)
     dish = CatalogService(CatalogRepository()).update_dish(dish_id, payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
-        return render_template("partials/manager_dish_row.html", dish=dish)
+        if str(payload.get("render_workspace", "")).lower() == "true":
+            return attach_feedback(_render_manager_workspace(), "Dish updated.")
+        return render_template("partials/manager_dish_row.html", dish=dish, serialize_manager_dish=_serialize_dish)
     return jsonify({"code": "ok", "message": "Dish updated.", "data": _serialize_dish(dish)})
 
 
@@ -154,7 +182,10 @@ def publish_dish(dish_id: str):
     publish = str(payload.get("publish", "true")).lower() == "true"
     dish = CatalogService(CatalogRepository()).publish_dish(dish_id, publish, g.current_roles)
     if request.headers.get("HX-Request") == "true":
-        return attach_feedback(render_template("partials/manager_dish_row.html", dish=dish), "Publish state updated.")
+        return attach_feedback(
+            render_template("partials/manager_dish_row.html", dish=dish, serialize_manager_dish=_serialize_dish),
+            "Publish state updated.",
+        )
     return jsonify({"code": "ok", "message": "Publish state updated.", "data": _serialize_dish(dish)})
 
 
@@ -244,13 +275,9 @@ def _inflate_payload(payload: dict) -> dict:
     if "tags" in payload and isinstance(payload["tags"], str):
         payload["tags"] = [tag.strip() for tag in payload["tags"].split(",") if tag.strip()]
     if "availability_windows" in payload and isinstance(payload["availability_windows"], str):
-        import json
-
-        payload["availability_windows"] = json.loads(payload["availability_windows"] or "[]")
+        payload["availability_windows"] = _load_json_field(payload["availability_windows"], "availability_windows")
     if "options" in payload and isinstance(payload["options"], str):
-        import json
-
-        payload["options"] = json.loads(payload["options"] or "[]")
+        payload["options"] = _load_json_field(payload["options"], "options")
     return payload
 
 
@@ -265,3 +292,10 @@ def _coerce_optional_bool(value):
     if normalized in {"0", "false", "no", "off"}:
         return False
     raise AppError("validation_error", "Boolean fields must be true or false.", 400)
+
+
+def _load_json_field(raw_value: str, field_name: str):
+    try:
+        return json.loads(raw_value or "[]")
+    except json.JSONDecodeError as exc:
+        raise AppError("validation_error", f"{field_name} must contain valid JSON.", 400, {"error": str(exc)}) from exc

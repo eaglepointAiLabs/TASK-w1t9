@@ -10,15 +10,6 @@ from app.services.payment_service import PaymentService
 from app.services.refund_service import RefundService
 
 
-def _seed_success_payment():
-    customer_id = AuthRepository().get_user_by_username("customer").id
-    dish = CatalogRepository().get_dish_by_slug("citrus-tofu-bowl")
-    order = OrderService(OrderRepository(), CatalogRepository()).checkout(
-        customer_id,
-        "refund-order-seed",
-    ) if False else None
-
-
 def _create_success_payment():
     customer_id = AuthRepository().get_user_by_username("customer").id
     dish = CatalogRepository().get_dish_by_slug("citrus-tofu-bowl")
@@ -40,11 +31,11 @@ def _issue_nonce(session_id: str, purpose: str) -> str:
     return AuthService(AuthRepository()).issue_nonce(session_id, purpose, 5)
 
 
-def test_partial_multi_refund_math_and_stepup(app):
+def test_partial_multi_refund_math_with_low_risk_auto_approval(app):
     with app.app_context():
         payment = _create_success_payment()
         finance = AuthRepository().get_user_by_username("finance")
-        session = AuthRepository().create_session(finance.id, "refund-session-1", payment.created_at)
+        session = AuthRepository().create_session(finance.id, "refund-session-low-risk", payment.created_at)
         db.session.commit()
 
         service = RefundService(RefundRepository())
@@ -69,11 +60,57 @@ def test_partial_multi_refund_math_and_stepup(app):
         assert second.status == "approved"
 
 
-def test_stepup_trigger_and_nonce_replay_rejection(app):
+def test_high_risk_refund_requires_store_manager_approval(app):
     with app.app_context():
         payment = _create_success_payment()
         finance = AuthRepository().get_user_by_username("finance")
-        session = AuthRepository().create_session(finance.id, "refund-session-2", payment.created_at)
+        manager = AuthRepository().get_user_by_username("manager")
+        finance_session = AuthRepository().create_session(finance.id, "refund-session-finance", payment.created_at)
+        manager_session = AuthRepository().create_session(manager.id, "refund-session-manager", payment.created_at)
+        db.session.commit()
+
+        service = RefundService(RefundRepository())
+        refund = service.create_refund(
+            {"transaction_reference": payment.transaction_reference, "refund_amount": "60.00", "route": payment.channel},
+            finance,
+            ["Finance Admin"],
+            finance_session.id,
+            _issue_nonce(finance_session.id, "refund:create"),
+            "device-b",
+        )
+        assert refund.status == "pending_stepup"
+
+        forbidden = False
+        try:
+            service.confirm_stepup(
+                refund.id,
+                "Finance#12345",
+                finance,
+                ["Finance Admin"],
+                finance_session.id,
+                _issue_nonce(finance_session.id, "refund:approve"),
+            )
+        except Exception as exc:
+            forbidden = getattr(exc, "code", "") == "forbidden"
+        assert forbidden
+
+        approved = service.confirm_stepup(
+            refund.id,
+            "Manager#12345",
+            manager,
+            ["Store Manager"],
+            manager_session.id,
+            _issue_nonce(manager_session.id, "refund:approve"),
+        )
+        assert approved.status == "approved"
+        assert any(event.event_type == "manager_stepup_approved" for event in approved.events)
+
+
+def test_nonce_replay_still_blocks_refund_request(app):
+    with app.app_context():
+        payment = _create_success_payment()
+        finance = AuthRepository().get_user_by_username("finance")
+        session = AuthRepository().create_session(finance.id, "refund-session-replay", payment.created_at)
         db.session.commit()
         service = RefundService(RefundRepository())
         nonce = _issue_nonce(session.id, "refund:create")
@@ -83,7 +120,7 @@ def test_stepup_trigger_and_nonce_replay_rejection(app):
             ["Finance Admin"],
             session.id,
             nonce,
-            "device-b",
+            "device-c",
         )
         assert refund.status == "pending_stepup"
 
@@ -95,23 +132,27 @@ def test_stepup_trigger_and_nonce_replay_rejection(app):
                 ["Finance Admin"],
                 session.id,
                 nonce,
-                "device-b",
+                "device-c",
             )
         except Exception as exc:
             replay_blocked = getattr(exc, "code", "") == "nonce_invalid"
         assert replay_blocked
 
 
-def test_device_anomaly_detection(app):
+def test_device_anomaly_detection_requires_manager_approval(app):
     with app.app_context():
         payment = _create_success_payment()
         finance = AuthRepository().get_user_by_username("finance")
-        session = AuthRepository().create_session(finance.id, "refund-session-3", payment.created_at)
+        session = AuthRepository().create_session(finance.id, "refund-session-device-risk", payment.created_at)
         db.session.commit()
         service = RefundService(RefundRepository())
-        for _ in range(3):
+        for index in range(3):
             service.create_refund(
-                {"transaction_reference": payment.transaction_reference, "refund_amount": "1.00", "route": payment.channel},
+                {
+                    "transaction_reference": payment.transaction_reference,
+                    "refund_amount": "1.00",
+                    "route": payment.channel,
+                },
                 finance,
                 ["Finance Admin"],
                 session.id,

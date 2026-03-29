@@ -29,9 +29,11 @@
           {% if "Finance Admin" in current_roles %}
             <a class="nav-link" href="{{ url_for('payments.finance_workspace') }}">Payments</a>
             <a class="nav-link" href="{{ url_for('reconciliation.reconciliation_dashboard') }}">Reconciliation</a>
-            <a class="nav-link" href="{{ url_for('refunds.refund_page') }}">Refunds</a>
             <a class="nav-link" href="{{ url_for('moderation.admin_page') }}">Admin Roles</a>
             <a class="nav-link" href="/api/admin/ops/jobs">Ops</a>
+          {% endif %}
+          {% if "Finance Admin" in current_roles or "Store Manager" in current_roles %}
+            <a class="nav-link" href="{{ url_for('refunds.refund_page') }}">Refunds</a>
           {% endif %}
           {% if "Store Manager" in current_roles %}
             <a class="nav-link" href="{{ url_for('catalog.manager_dishes_page') }}">Manager</a>

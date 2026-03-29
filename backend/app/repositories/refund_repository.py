@@ -61,6 +61,15 @@ class RefundRepository:
         stmt = select(Refund).options(joinedload(Refund.events)).where(Refund.id == refund_id)
         return db.session.execute(stmt).unique().scalar_one_or_none()
 
+    def list_refunds(self, limit: int = 20) -> list[Refund]:
+        stmt = (
+            select(Refund)
+            .options(joinedload(Refund.events))
+            .order_by(Refund.created_at.desc())
+            .limit(limit)
+        )
+        return list(db.session.execute(stmt).unique().scalars())
+
     def list_risk_events(self) -> list[RefundRiskEvent]:
         stmt = select(RefundRiskEvent).order_by(RefundRiskEvent.created_at.desc())
         return list(db.session.scalars(stmt))

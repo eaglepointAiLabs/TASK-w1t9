@@ -55,6 +55,7 @@ def test_role_specific_pages_render_for_authorized_roles(app):
 
     login(manager_client, "manager", "Manager#12345")
     assert manager_client.get("/manager/dishes").status_code == 200
+    assert manager_client.get("/finance/refunds").status_code == 200
 
     login(finance_client, "finance", "Finance#12345")
     for path in ["/finance/payments", "/finance/reconciliation", "/finance/refunds", "/admin/roles"]:

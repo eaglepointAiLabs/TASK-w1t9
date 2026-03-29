@@ -203,6 +203,15 @@ button:hover,
   gap: 0.95rem;
 }
 
+.action-row,
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -211,6 +220,12 @@ button:hover,
 
 .compact-grid {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
 }
 
 h1,
@@ -237,6 +252,16 @@ label {
   display: grid;
   gap: 0.45rem;
   font-weight: 600;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: auto;
 }
 
 input,
@@ -318,6 +343,33 @@ legend {
 .danger {
   border-color: rgba(161, 50, 42, 0.24);
   background: rgba(255, 241, 239, 0.96);
+}
+
+.structured-block,
+.structured-subblock,
+.rule-summary,
+.payment-summary,
+.refund-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 250, 243, 0.72);
+  padding: 1rem;
+}
+
+.structured-subsection {
+  padding: 0.9rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.structured-editor-section {
+  padding-top: 0.4rem;
+}
+
+.manager-dish-card {
+  display: grid;
+  gap: 0.8rem;
 }
 
 .danger-text {

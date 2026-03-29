@@ -7,7 +7,7 @@
     <p class="muted">Cookie sessions, CSRF protection, lockout controls, and role-aware workspaces are active from first boot.</p>
   </div>
   <div class="grid">
-    <form method="post" action="{{ url_for('auth.login') }}" hx-post="{{ url_for('auth.login') }}" hx-swap="none" class="stack card">
+    <form id="login-form" method="post" action="{{ url_for('auth.login') }}" hx-post="{{ url_for('auth.login') }}" hx-swap="none" class="stack card">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>
         Username

@@ -196,4 +196,15 @@ def create_app(config_name: str | None = None) -> Flask:
     def inject_request_context():
         return {"current_user": g.get("current_user"), "current_roles": g.get("current_roles", [])}
 
+    @app.get("/healthz")
+    def healthz():
+        db.session.execute(db.text("select 1"))
+        return jsonify(
+            {
+                "code": "ok",
+                "message": "Service healthy.",
+                "data": {"status": "ok", "app": app.config["APP_NAME"]},
+            }
+        )
+
     return app

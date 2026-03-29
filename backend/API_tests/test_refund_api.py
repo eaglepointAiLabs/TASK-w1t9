@@ -25,11 +25,12 @@ def issue_nonce(client, csrf_token, purpose):
     return response.json["data"]["nonce"]
 
 
-def test_refund_create_and_stepup_flow(app):
+def test_refund_create_requires_store_manager_approval_for_high_risk_flow(app):
     from app.repositories.catalog_repository import CatalogRepository
 
     customer_client = app.test_client()
     finance_client = app.test_client()
+    manager_client = app.test_client()
 
     customer_csrf = login(customer_client, "customer", "Customer#1234")
     with app.app_context():
@@ -65,13 +66,23 @@ def test_refund_create_and_stepup_flow(app):
     assert refund_response.status_code == 201
     assert refund_response.json["data"]["status"] == "pending_stepup"
 
-    confirm = finance_client.post(
+    finance_confirm = finance_client.post(
         f"/api/refunds/{refund_response.json['data']['id']}/confirm-stepup",
-        json={"password": "Finance#12345", "nonce": issue_nonce(finance_client, finance_csrf, "refund:confirm")},
+        json={"password": "Finance#12345", "nonce": issue_nonce(finance_client, finance_csrf, "refund:approve")},
         headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
     )
-    assert confirm.status_code == 200
-    assert confirm.json["data"]["status"] == "approved"
+    assert finance_confirm.status_code == 403
+    assert finance_confirm.json["code"] == "forbidden"
+
+    manager_csrf = login(manager_client, "manager", "Manager#12345")
+    manager_confirm = manager_client.post(
+        f"/api/refunds/{refund_response.json['data']['id']}/confirm-stepup",
+        json={"password": "Manager#12345", "nonce": issue_nonce(manager_client, manager_csrf, "refund:approve")},
+        headers={"X-CSRF-Token": manager_csrf, "Accept": "application/json"},
+    )
+    assert manager_confirm.status_code == 200
+    assert manager_confirm.json["data"]["status"] == "approved"
+    assert any(event["event_type"] == "manager_stepup_approved" for event in manager_confirm.json["data"]["events"])
 
 
 def test_nonce_replay_rejected(client, app):

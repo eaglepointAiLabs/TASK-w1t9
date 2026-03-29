@@ -61,10 +61,14 @@ def test_single_browser_session_can_switch_users_without_stale_privileges(client
 def test_parallel_browser_sessions_keep_role_access_isolated(app):
     customer_client = app.test_client()
     finance_client = app.test_client()
+    manager_client = app.test_client()
 
     login(customer_client, "customer", "Customer#1234")
     login(finance_client, "finance", "Finance#12345")
+    login(manager_client, "manager", "Manager#12345")
 
     assert customer_client.get("/finance/refunds").status_code == 403
     assert finance_client.get("/finance/refunds").status_code == 200
+    assert manager_client.get("/finance/refunds").status_code == 200
+    assert manager_client.get("/finance/payments").status_code == 403
     assert customer_client.get("/community").status_code == 200

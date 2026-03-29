@@ -24,7 +24,7 @@
   {% endfor %}
   <p><strong>Cart total: ${{ cart["total_amount"] }}</strong></p>
   {% if cart["items"] %}
-    <form method="post" action="{{ url_for('orders.checkout') }}" hx-post="{{ url_for('orders.checkout') }}" hx-target="main" hx-swap="innerHTML" class="stack">
+    <form id="cart-checkout-form" method="post" action="{{ url_for('orders.checkout') }}" hx-post="{{ url_for('orders.checkout') }}" hx-target="main" hx-swap="innerHTML" class="stack">
       <input type="hidden" name="csrf_token" value="">
       <input type="hidden" name="checkout_key" value="{{ checkout_key }}">
       <button type="submit">Checkout</button>

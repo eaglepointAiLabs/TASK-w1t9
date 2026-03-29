@@ -20,6 +20,9 @@ export PYTHONPATH="$FULLSTACK_DIR/backend"
 export FLASK_ENV=test
 
 cd "$FULLSTACK_DIR"
+printf '%s\n' "== Running documentation smoke check =="
+python scripts/smoke_check.py
+
 printf '%s\n' "== Running unit tests =="
 python -m pytest backend/unit_tests -q
 

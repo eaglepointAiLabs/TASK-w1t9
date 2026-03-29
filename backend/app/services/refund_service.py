@@ -137,22 +137,26 @@ class RefundService:
         current_session_id: str | None,
         nonce_value: str | None,
     ):
-        self.rbac.require_roles(current_roles, ["Finance Admin"])
-        self.auth_service.consume_nonce(current_session_id, "refund:confirm", nonce_value)
+        self.rbac.require_roles(current_roles, ["Store Manager"])
+        self.auth_service.consume_nonce(current_session_id, "refund:approve", nonce_value)
         refund = self.repository.get_refund(refund_id)
         if refund is None:
             raise AppError("not_found", "Refund not found.", 404)
         challenge = self.repository.get_active_stepup(refund.id)
         if challenge is None or challenge.expires_at < utc_now_naive():
             raise AppError("stepup_missing", "Active step-up challenge not found.", 400)
+        if refund.status != "pending_stepup":
+            raise AppError("stepup_missing", "Refund is not awaiting manager approval.", 400)
+        if refund.requested_by_user_id == current_user.id or challenge.operator_user_id == current_user.id:
+            raise AppError("approval_conflict", "The requesting operator cannot approve the same high-risk refund.", 403)
 
         user = AuthRepository().get_user_by_username(current_user.username)
         if not password:
-            raise AppError("stepup_failed", "Password confirmation is required.", 403)
+            raise AppError("stepup_failed", "Manager password confirmation is required.", 403)
         from app.extensions import bcrypt
 
         if not bcrypt.check_password_hash(user.password_hash, password):
-            raise AppError("stepup_failed", "Password confirmation failed.", 403)
+            raise AppError("stepup_failed", "Manager password confirmation failed.", 403)
 
         from_status = refund.status
         refund.status = "approved"
@@ -163,23 +167,33 @@ class RefundService:
         db.session.add(challenge)
         self.repository.create_refund_event(
             refund_id=refund.id,
-            event_type="stepup_confirmed",
+            event_type="manager_stepup_approved",
             from_status=from_status,
             to_status="approved",
             actor_user_id=current_user.id,
-            details_json=json.dumps({"challenge_id": challenge.id}),
+            details_json=json.dumps(
+                {
+                    "challenge_id": challenge.id,
+                    "approved_by_user_id": current_user.id,
+                    "requested_by_user_id": refund.requested_by_user_id,
+                }
+            ),
         )
         db.session.commit()
-        logger.info("refund.stepup_confirmed", refund_id=refund.id)
+        logger.info("refund.stepup_confirmed", refund_id=refund.id, approved_by_user_id=current_user.id)
         return refund
 
     def get_refund(self, refund_id: str, current_roles: list[str]):
-        self.rbac.require_roles(current_roles, ["Finance Admin"])
+        self.rbac.require_roles(current_roles, ["Finance Admin", "Store Manager"])
         refund = self.repository.get_refund(refund_id)
         if refund is None:
             raise AppError("not_found", "Refund not found.", 404)
         return refund
 
     def list_risk_events(self, current_roles: list[str]):
-        self.rbac.require_roles(current_roles, ["Finance Admin"])
+        self.rbac.require_roles(current_roles, ["Finance Admin", "Store Manager"])
         return self.repository.list_risk_events()
+
+    def list_workspace(self, current_roles: list[str]):
+        self.rbac.require_roles(current_roles, ["Finance Admin", "Store Manager"])
+        return self.repository.list_refunds(), self.repository.list_risk_events()
