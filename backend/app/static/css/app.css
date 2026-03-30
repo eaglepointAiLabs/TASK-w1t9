@@ -139,6 +139,10 @@ body::before {
   justify-content: flex-end;
 }
 
+.nav-inline-form {
+  margin: 0;
+}
+
 .nav-link,
 button,
 .button-link {

@@ -60,6 +60,26 @@ def test_logout_requires_csrf(client):
     assert response.status_code == 403
 
 
+def test_logout_form_submission_redirects_to_login(client):
+    csrf_token = fetch_csrf(client)
+    login_response = client.post(
+        "/auth/login",
+        json={"username": "customer", "password": "Customer#1234"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert login_response.status_code == 200
+
+    csrf_token = login_response.headers["X-CSRF-Token"]
+    logout_response = client.post(
+        "/auth/logout",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+
+    assert logout_response.status_code == 302
+    assert logout_response.headers["Location"].endswith("/login")
+
+
 def test_home_requires_session(client):
     response = client.get("/")
     assert response.status_code == 302

@@ -9,7 +9,7 @@ services:
       KEY_ENCRYPTION_SECRET: 1baf2af44c8748c882a33e80914dc701_tablepay_review_encryption_secret
       SESSION_COOKIE_SECURE: "false"
       ALLOW_INSECURE_HTTP: "true"
-      SHOW_SEEDED_CREDENTIALS: "true"
+      SHOW_SEEDED_CREDENTIALS: "false"
     ports:
       - "9100:5000"
     volumes:

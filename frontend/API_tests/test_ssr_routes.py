@@ -39,6 +39,12 @@ def test_authenticated_user_is_redirected_away_from_login(client):
 def test_customer_pages_render_and_privileged_pages_are_forbidden(client):
     login(client, "customer", "Customer#1234")
 
+    dashboard = client.get("/")
+    dashboard_html = dashboard.get_data(as_text=True)
+    assert dashboard.status_code == 200
+    assert 'action="/auth/logout"' in dashboard_html
+    assert "Seeded accounts" not in dashboard_html
+
     for path in ["/menu", "/cart", "/community"]:
         response = client.get(path)
         assert response.status_code == 200, path
