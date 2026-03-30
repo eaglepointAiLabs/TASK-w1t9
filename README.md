@@ -44,6 +44,17 @@ docker compose --profile tests run --rm --build tests python -m pytest backend/u
 docker compose --profile tests run --rm --build tests python -m pytest backend/API_tests -q
 docker compose --profile tests run --rm --build tests python -m pytest frontend/API_tests -q
 docker compose --profile tests run --rm --build tests python -m pytest frontend/unit_tests -q
+docker compose --profile e2e run --rm --build e2e
+docker compose --profile e2e rm -sf web-e2e
+```
+
+## Frontend E2E (Docker Only)
+
+This suite runs fully in Docker using an isolated E2E app container plus an E2E test container.
+
+```bash
+docker compose --profile e2e run --rm --build e2e
+docker compose --profile e2e rm -sf web-e2e
 ```
 
 ## Default Login Credentials

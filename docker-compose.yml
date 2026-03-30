@@ -21,6 +21,26 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+
+  web-e2e:
+    build:
+      context: ./backend
+    profiles: ["e2e"]
+    environment:
+      TABLEPAY_ENV: development
+      SECRET_KEY: e2e_local_review_secret_key_32_chars_minimum
+      KEY_ENCRYPTION_SECRET: e2e_local_review_encryption_key_32_chars
+      SESSION_COOKIE_SECURE: "false"
+      ALLOW_INSECURE_HTTP: "true"
+      SHOW_SEEDED_CREDENTIALS: "false"
+      BOOTSTRAP_SEED_DATA: "true"
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   tests:
     build:
       context: .
@@ -40,5 +60,26 @@ services:
         "backend/API_tests",
         "frontend/API_tests",
         "frontend/unit_tests",
+        "-q",
+      ]
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    profiles: ["e2e"]
+    depends_on:
+      web-e2e:
+        condition: service_healthy
+    environment:
+      TABLEPAY_E2E_BASE_URL: http://web-e2e:5000
+      PYTHONPATH: /workspace/backend
+    working_dir: /workspace
+    command:
+      [
+        "python",
+        "-m",
+        "pytest",
+        "frontend/e2e",
         "-q",
       ]
