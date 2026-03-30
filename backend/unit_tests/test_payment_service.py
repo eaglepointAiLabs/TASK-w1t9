@@ -56,6 +56,32 @@ def test_valid_and_invalid_signature_cases(app):
         assert invalid["verified"] is False
 
 
+def test_malformed_callback_timestamp_is_rejected_without_exception(app):
+    order = _create_order(app)
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        payment = payment_service.capture_payment(
+            {
+                "order_id": order.id,
+                "transaction_reference": "pay-bad-timestamp-1",
+                "capture_amount": "10.25",
+                "status": "pending",
+            },
+            ["Finance Admin"],
+        )
+
+        bad_timestamp_package = _package(
+            "simulator-secret-v1",
+            "simulator-v1",
+            payment.transaction_reference,
+            "not-an-iso-datetime",
+        )
+        verification = payment_service.verify_callback_preview(bad_timestamp_package, ["Finance Admin"])
+
+        assert verification["verified"] is False
+        assert "occurred_at" in verification["message"]
+
+
 def test_key_rotation_behavior(app):
     with app.app_context():
         payment_service = PaymentService(PaymentRepository())

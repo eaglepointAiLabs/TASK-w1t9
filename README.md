@@ -15,6 +15,14 @@ This starts:
 
 - web (TablePay app on http://localhost:9100)
 
+By default in this production-labeled compose setup:
+
+- secure cookies are enforced
+- insecure HTTP override is disabled
+- bootstrap data seeding is disabled
+
+If you need demo seed users for local review only, set `BOOTSTRAP_SEED_DATA=true` in your environment before start.
+
 ## Run Tests (Docker Only)
 
 Run the full suite:
@@ -40,10 +48,16 @@ docker compose --profile tests run --rm --build tests python -m pytest frontend/
 
 ## Default Login Credentials
 
+Only available when bootstrap seeding is enabled (`BOOTSTRAP_SEED_DATA=true`).
+
 - customer / Customer#1234
 - manager / Manager#12345
 - finance / Finance#12345
 - moderator / Moderator#123
+
+## Disaster Recovery Runbook
+
+See [docs/disaster-recovery-runbook.md](docs/disaster-recovery-runbook.md) for a full offline backup and restore drill procedure, validation checklist, and evidence template.
 
 ## Stop and Cleanup
 

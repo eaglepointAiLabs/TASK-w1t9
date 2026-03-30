@@ -125,7 +125,7 @@ def test_invalid_signature_rejected(app):
 
     order_id = create_order(customer_client, app, checkout_key="payment-api-order-bad")
     finance_csrf = login(finance_client, "finance", "Finance#12345")
-    finance_client.post(
+    capture_response = finance_client.post(
         "/api/payments/capture",
         json={
             "order_id": order_id,
@@ -135,6 +135,8 @@ def test_invalid_signature_rejected(app):
         },
         headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
     )
+    assert capture_response.status_code == 201
+    payment_id = capture_response.json["data"]["id"]
 
     bad_package = signed_package("wrong-secret", "simulator-v1", "api-pay-bad", "2026-03-28T10:00:00+00:00")
     response = finance_client.post(
@@ -145,6 +147,45 @@ def test_invalid_signature_rejected(app):
 
     assert response.status_code == 409
     assert response.json["code"] == "callback_rejected"
+
+    payment_response = finance_client.get(f"/api/payments/{payment_id}", headers={"Accept": "application/json"})
+    assert payment_response.status_code == 200
+    assert payment_response.json["data"]["status"] == "pending"
+
+
+def test_malformed_callback_timestamp_is_rejected_and_non_mutating(app):
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-bad-ts")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+    capture_response = finance_client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-pay-bad-ts",
+            "capture_amount": "10.25",
+            "status": "pending",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert capture_response.status_code == 201
+    payment_id = capture_response.json["data"]["id"]
+
+    bad_timestamp_package = signed_package("simulator-secret-v1", "simulator-v1", "api-pay-bad-ts", "not-an-iso-datetime")
+    response = finance_client.post(
+        "/api/payments/callbacks/import",
+        json=bad_timestamp_package,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+
+    assert response.status_code == 409
+    assert response.json["code"] == "callback_rejected"
+    assert "occurred_at" in response.json["data"]["verification_message"]
+
+    payment_response = finance_client.get(f"/api/payments/{payment_id}", headers={"Accept": "application/json"})
+    assert payment_response.status_code == 200
+    assert payment_response.json["data"]["status"] == "pending"
 
 
 def test_jsapi_simulator_endpoint_imports_callback(app):

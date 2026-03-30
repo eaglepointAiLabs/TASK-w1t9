@@ -17,5 +17,8 @@ app = create_app()
 
 with app.app_context():
     upgrade(directory="migrations")
-    seed_all()
-    print("Database migrated and seeded.")
+    if app.config.get("BOOTSTRAP_SEED_DATA", True):
+        seed_all()
+        print("Database migrated and seeded.")
+    else:
+        print("Database migrated. Seed step skipped by BOOTSTRAP_SEED_DATA=false.")

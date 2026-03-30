@@ -42,4 +42,9 @@ class PaymentSecurity:
 
     @staticmethod
     def parse_event_time(value: str | None) -> datetime | None:
-        return parse_iso_datetime_as_utc_naive(value)
+        if not isinstance(value, str):
+            return None
+        try:
+            return parse_iso_datetime_as_utc_naive(value)
+        except (TypeError, ValueError):
+            return None

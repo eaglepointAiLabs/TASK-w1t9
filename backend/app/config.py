@@ -69,6 +69,7 @@ class Config:
     NIGHTLY_BACKUP_ENABLED = True
     NIGHTLY_BACKUP_HOUR_UTC = 2
     BACKUP_RETENTION_DAYS = 14
+    BOOTSTRAP_SEED_DATA = True
 
     @staticmethod
     def init_app() -> None:
@@ -99,6 +100,7 @@ class DevelopmentConfig(Config):
     SESSION_COOKIE_SECURE = _env_flag("SESSION_COOKIE_SECURE", "false")
     ALLOW_INSECURE_HTTP = _env_flag("ALLOW_INSECURE_HTTP", "true")
     SHOW_SEEDED_CREDENTIALS = _env_flag("SHOW_SEEDED_CREDENTIALS", "false")
+    BOOTSTRAP_SEED_DATA = _env_flag("BOOTSTRAP_SEED_DATA", "true")
 
 
 class TestConfig(Config):
@@ -112,6 +114,7 @@ class TestConfig(Config):
     SHOW_SEEDED_CREDENTIALS = _env_flag("SHOW_SEEDED_CREDENTIALS", "false")
     OPS_MAINTENANCE_ENABLED = False
     NIGHTLY_BACKUP_ENABLED = False
+    BOOTSTRAP_SEED_DATA = _env_flag("BOOTSTRAP_SEED_DATA", "true")
 
 
 class ProductionConfig(Config):
@@ -128,6 +131,7 @@ class ProductionConfig(Config):
             "SESSION_COOKIE_SECURE": _env_flag("SESSION_COOKIE_SECURE", "true"),
             "ALLOW_INSECURE_HTTP": _env_flag("ALLOW_INSECURE_HTTP", "false"),
             "SHOW_SEEDED_CREDENTIALS": _env_flag("SHOW_SEEDED_CREDENTIALS", "false"),
+            "BOOTSTRAP_SEED_DATA": _env_flag("BOOTSTRAP_SEED_DATA", "false"),
         }
 
     @classmethod

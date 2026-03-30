@@ -102,12 +102,13 @@ class PaymentService:
         if transaction is not None:
             callback.payment_transaction_id = transaction.id
             callback.payment_transaction = transaction
-            transaction.status = package.get("payload", {}).get("status", transaction.status)
-            if transaction.status == "success":
-                transaction.captured_at = utc_now_naive()
-            if transaction.status == "failed":
-                transaction.failure_reason = verification["message"]
-            db.session.add(transaction)
+            if verification["verified"]:
+                transaction.status = package.get("payload", {}).get("status", transaction.status)
+                if transaction.status == "success":
+                    transaction.captured_at = utc_now_naive()
+                if transaction.status == "failed":
+                    transaction.failure_reason = verification["message"]
+                db.session.add(transaction)
 
         response = {
             "code": "ok" if verification["verified"] else "callback_rejected",
@@ -196,7 +197,11 @@ class PaymentService:
 
         event_time = self.security.parse_event_time(payload.get("occurred_at"))
         if event_time is None:
-            return {"verified": False, "message": "payload.occurred_at is required.", "payload_hash": payload_hash}
+            return {
+                "verified": False,
+                "message": "payload.occurred_at is required and must be a valid ISO-8601 datetime.",
+                "payload_hash": payload_hash,
+            }
         event_time = self._normalize_datetime(event_time)
         active_from = self._normalize_datetime(key.active_from)
         expires_at = self._normalize_datetime(key.expires_at) if key.expires_at else None
