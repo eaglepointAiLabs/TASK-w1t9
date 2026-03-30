@@ -14,6 +14,11 @@ htmlcov/
 node_modules/
 .venv/
 venv/
+data/*.db
+data/uploads/
+data/backups/
+data/restore-tests/
+data/test-temp/
 fullstack/data/*.db
 fullstack/data/uploads/
 fullstack/data/backups/

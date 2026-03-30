@@ -11,7 +11,7 @@ services:
       ALLOW_INSECURE_HTTP: "true"
       SHOW_SEEDED_CREDENTIALS: "true"
     ports:
-      - "5000:5000"
+      - "9100:5000"
     volumes:
       - ./data:/app/data
     healthcheck:
@@ -20,3 +20,24 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    profiles: ["tests"]
+    environment:
+      TABLEPAY_ENV: test
+      FLASK_ENV: test
+      PYTHONPATH: /workspace/backend
+    working_dir: /workspace
+    command:
+      [
+        "python",
+        "-m",
+        "pytest",
+        "backend/unit_tests",
+        "backend/API_tests",
+        "frontend/API_tests",
+        "frontend/unit_tests",
+        "-q",
+      ]
