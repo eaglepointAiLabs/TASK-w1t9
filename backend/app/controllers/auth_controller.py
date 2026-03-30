@@ -5,7 +5,6 @@ from flask import current_app, g, jsonify, make_response, redirect, render_templ
 from app.repositories.auth_repository import AuthRepository
 from app.services.auth_service import AuthService
 from app.services.errors import AppError
-from app.controllers.ui_helpers import attach_feedback
 
 
 def _cookie_kwargs(httponly: bool) -> dict:
@@ -26,6 +25,22 @@ def render_login_page():
             "auth/login.html",
             csrf_token=csrf_token,
             show_seeded_credentials=bool(current_app.config.get("SHOW_SEEDED_CREDENTIALS", False)),
+        )
+    )
+    response.set_cookie("client_id", g.client_id, **_cookie_kwargs(httponly=True))
+    response.set_cookie("csrf_token", csrf_token, **_cookie_kwargs(httponly=False))
+    return response
+
+
+def render_register_page():
+    if g.current_user is not None:
+        return redirect(url_for("pages.render_home"))
+    auth_service = AuthService(AuthRepository())
+    csrf_token = auth_service.issue_csrf_token(g.client_id)
+    response = make_response(
+        render_template(
+            "auth/register.html",
+            csrf_token=csrf_token,
         )
     )
     response.set_cookie("client_id", g.client_id, **_cookie_kwargs(httponly=True))
@@ -65,6 +80,56 @@ def login():
         if request.headers.get("HX-Request") == "true":
             response.headers["X-Redirect-Location"] = url_for("pages.render_home")
             response.headers["X-Toast-Message"] = "Signed in successfully."
+            response.headers["X-Toast-Tone"] = "success"
+    else:
+        response = make_response(redirect(url_for("pages.render_home")))
+    response.set_cookie(
+        current_app.config["SESSION_COOKIE_NAME"],
+        session.session_token,
+        **_cookie_kwargs(httponly=True),
+    )
+    response.set_cookie("client_id", g.client_id, **_cookie_kwargs(httponly=True))
+    response.set_cookie("csrf_token", csrf_token, **_cookie_kwargs(httponly=False))
+    return response
+
+
+def register():
+    if g.current_user is not None:
+        raise AppError("already_authenticated", "Sign out before creating a new account.", 400)
+
+    auth_service = AuthService(AuthRepository())
+    payload = request.get_json(silent=True) or request.form
+    username = payload.get("username") or ""
+    password = payload.get("password") or ""
+    confirm_password = payload.get("confirm_password")
+    if confirm_password is not None and confirm_password != password:
+        raise AppError("validation_error", "Password confirmation does not match.", 400)
+
+    user = auth_service.register_customer(username=username, password=password)
+    session = auth_service.create_session_for_user(
+        user_id=user.id,
+        session_ttl_hours=current_app.config["SESSION_TTL_HOURS"],
+    )
+    roles = AuthRepository().get_roles_by_user_id(user.id)
+    csrf_token = auth_service.issue_csrf_token(
+        client_id=g.client_id,
+        session_id=session.id,
+        ttl_hours=current_app.config["CSRF_TTL_HOURS"],
+    )
+    wants_json = request.is_json or request.headers.get("HX-Request") == "true"
+    if wants_json:
+        response = jsonify(
+            {
+                "code": "ok",
+                "message": "Registration successful.",
+                "data": {"username": user.username, "roles": roles},
+            }
+        )
+        response.status_code = 201
+        response.headers["X-CSRF-Token"] = csrf_token
+        if request.headers.get("HX-Request") == "true":
+            response.headers["X-Redirect-Location"] = url_for("pages.render_home")
+            response.headers["X-Toast-Message"] = "Account created successfully."
             response.headers["X-Toast-Tone"] = "success"
     else:
         response = make_response(redirect(url_for("pages.render_home")))

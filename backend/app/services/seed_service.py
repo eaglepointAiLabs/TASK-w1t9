@@ -20,6 +20,7 @@ from app.services.payment_service import PaymentService
 DEFAULT_USERS = {
     "customer": {"password": "Customer#1234", "role": "Customer"},
     "manager": {"password": "Manager#12345", "role": "Store Manager"},
+    "admin": {"password": "Admin#123456", "role": "Finance Admin"},
     "finance": {"password": "Finance#12345", "role": "Finance Admin"},
     "moderator": {"password": "Moderator#123", "role": "Moderator"},
 }

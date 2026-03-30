@@ -6,6 +6,7 @@ import re
 import urllib.parse
 import urllib.request
 from urllib.error import HTTPError
+from uuid import uuid4
 
 
 _CSRF_RE = re.compile(r'name="csrf_token" value="([^"]+)"')
@@ -109,6 +110,28 @@ def _login_customer(session: LiveSession) -> str:
     return session.get_cookie("csrf_token") or csrf_token
 
 
+def _register_customer(session: LiveSession) -> tuple[str, str]:
+    status, html, _ = session.get("/register")
+    assert status == 200
+    csrf_token = _extract_csrf(html)
+    username = f"live.customer.{uuid4().hex[:8]}"
+    password = "LiveCustomer#1234"
+
+    status, body, _ = session.post_json(
+        "/auth/register",
+        {
+            "username": username,
+            "password": password,
+            "confirm_password": password,
+        },
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert status == 201
+    assert "Registration successful" in body
+    assert session.get_cookie("tablepay_session") is not None
+    return username, (session.get_cookie("csrf_token") or csrf_token)
+
+
 def test_customer_happy_path_live_runtime(base_url: str):
     session = LiveSession(base_url)
     csrf_token = _login_customer(session)
@@ -138,3 +161,20 @@ def test_customer_permission_denied_for_manager_page(base_url: str):
     status, body, _ = session.get("/manager/dishes")
     assert status == 403
     assert "permission" in body.lower()
+
+
+def test_customer_registration_live_runtime(base_url: str):
+    session = LiveSession(base_url)
+    username, csrf_token = _register_customer(session)
+
+    status, dashboard_html, _ = session.get("/")
+    assert status == 200
+    assert username in dashboard_html
+
+    status, body, _ = session.post_json(
+        "/auth/logout",
+        {},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    assert status == 200
+    assert "Logout successful" in body

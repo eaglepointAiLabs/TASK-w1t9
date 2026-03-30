@@ -10,7 +10,7 @@ services:
       SESSION_COOKIE_SECURE: "true"
       ALLOW_INSECURE_HTTP: "false"
       SHOW_SEEDED_CREDENTIALS: "false"
-      BOOTSTRAP_SEED_DATA: "false"
+      BOOTSTRAP_SEED_DATA: "true"
     ports:
       - "9100:5000"
     volumes:

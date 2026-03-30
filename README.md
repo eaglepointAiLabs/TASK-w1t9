@@ -19,9 +19,9 @@ By default in this production-labeled compose setup:
 
 - secure cookies are enforced
 - insecure HTTP override is disabled
-- bootstrap data seeding is disabled
+- bootstrap data seeding is enabled
 
-If you need demo seed users for local review only, set `BOOTSTRAP_SEED_DATA=true` in your environment before start.
+If you need to disable local demo seeding, set `BOOTSTRAP_SEED_DATA=false` before start.
 
 ## Run Tests (Docker Only)
 
@@ -59,10 +59,11 @@ docker compose --profile e2e rm -sf web-e2e
 
 ## Default Login Credentials
 
-Only available when bootstrap seeding is enabled (`BOOTSTRAP_SEED_DATA=true`).
+Available when bootstrap seeding is enabled (`BOOTSTRAP_SEED_DATA=true`).
 
 - customer / Customer#1234
 - manager / Manager#12345
+- admin / Admin#123456
 - finance / Finance#12345
 - moderator / Moderator#123
 

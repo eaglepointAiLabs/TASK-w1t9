@@ -12,6 +12,10 @@ class AuthRepository:
         stmt = select(User).where(User.username == username)
         return db.session.scalar(stmt)
 
+    def get_role_by_name(self, role_name: str) -> Role | None:
+        stmt = select(Role).where(Role.name == role_name)
+        return db.session.scalar(stmt)
+
     def get_roles_by_user_id(self, user_id: str) -> list[str]:
         stmt = (
             select(Role.name)

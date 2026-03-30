@@ -1,5 +1,5 @@
-def fetch_csrf(client):
-    response = client.get("/login")
+def fetch_csrf(client, page="/login"):
+    response = client.get(page)
     html = response.get_data(as_text=True)
     marker = 'name="csrf_token" value="'
     return html.split(marker)[1].split('"')[0]
@@ -26,6 +26,16 @@ def test_public_shell_redirects_to_login_and_login_page_renders(client):
     assert login_page.status_code == 200
     assert "Sign in to the TablePay control room" in html
     assert 'name="csrf_token"' in html
+    assert 'href="/register"' in html
+
+
+def test_register_page_renders(client):
+    register_page = client.get("/register")
+    html = register_page.get_data(as_text=True)
+
+    assert register_page.status_code == 200
+    assert "Create your TablePay customer account" in html
+    assert 'action="/auth/register"' in html
 
 
 def test_authenticated_user_is_redirected_away_from_login(client):
@@ -34,6 +44,31 @@ def test_authenticated_user_is_redirected_away_from_login(client):
     response = client.get("/login", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/")
+
+    register_response = client.get("/register", follow_redirects=False)
+    assert register_response.status_code == 302
+    assert register_response.headers["Location"].endswith("/")
+
+
+def test_register_form_submission_redirects_to_home(client):
+    csrf_token = fetch_csrf(client, "/register")
+    response = client.post(
+        "/auth/register",
+        data={
+            "username": "ssr.new.customer",
+            "password": "SsrCustomer#123",
+            "confirm_password": "SsrCustomer#123",
+            "csrf_token": csrf_token,
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
+
+    dashboard = client.get("/")
+    assert dashboard.status_code == 200
+    assert "ssr.new.customer" in dashboard.get_data(as_text=True)
 
 
 def test_customer_pages_render_and_privileged_pages_are_forbidden(client):

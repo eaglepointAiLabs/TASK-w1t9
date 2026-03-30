@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import re
 from secrets import token_urlsafe
 
 import structlog
 
 from app.extensions import bcrypt, db
-from app.models import Session, User
+from app.models import Role, Session, User, UserRole
 from app.repositories.auth_repository import AuthRepository
 from app.services.errors import AppError
 from app.services.password_policy import validate_password_complexity
@@ -14,6 +15,12 @@ from app.services.time_utils import utc_now_naive
 
 
 logger = structlog.get_logger(__name__)
+
+USERNAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{2,31}$")
+USERNAME_POLICY_RULES = [
+    "Username must be 3-32 characters long.",
+    "Username must start with a letter or number and may only contain lowercase letters, numbers, '.', '_', or '-'.",
+]
 
 
 class AuthService:
@@ -48,7 +55,7 @@ class AuthService:
         lockout_window_minutes: int,
         lockout_max_attempts: int,
     ) -> tuple[User, Session]:
-        normalized = username.lower().strip()
+        normalized = self.normalize_username(username)
         if not normalized or not password:
             raise AppError("invalid_credentials", "Username and password are required.", 400)
 
@@ -80,6 +87,37 @@ class AuthService:
         logger.info("auth.login_success", username=normalized, user_id=user.id, ip_address=ip_address)
         return user, session
 
+    def register_customer(self, username: str, password: str) -> User:
+        normalized = self.normalize_username(username)
+        self.validate_username_format(normalized)
+
+        if self.repository.get_user_by_username(normalized) is not None:
+            raise AppError("username_taken", "Username is already taken.", 409)
+
+        user = self.create_user_with_password(normalized, password)
+        customer_role = self.repository.get_role_by_name("Customer")
+        if customer_role is None:
+            customer_role = Role(name="Customer")
+            db.session.add(customer_role)
+            db.session.flush()
+
+        already_assigned = any(assignment.role_id == customer_role.id for assignment in user.roles)
+        if not already_assigned:
+            db.session.add(UserRole(user_id=user.id, role_id=customer_role.id))
+
+        db.session.commit()
+        logger.info("auth.register_success", username=normalized, user_id=user.id)
+        return user
+
+    def create_session_for_user(self, user_id: str, session_ttl_hours: int) -> Session:
+        session = self.repository.create_session(
+            user_id=user_id,
+            session_token=token_urlsafe(48),
+            expires_at=utc_now_naive() + timedelta(hours=session_ttl_hours),
+        )
+        db.session.commit()
+        return session
+
     def logout(self, current_session: Session | None) -> None:
         if current_session is None:
             return
@@ -101,12 +139,26 @@ class AuthService:
         return user, session, roles
 
     def create_user_with_password(self, username: str, password: str) -> User:
+        normalized = self.normalize_username(username)
+        self.validate_username_format(normalized)
         validate_password_complexity(password)
         password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
-        user = User(username=username.lower().strip(), password_hash=password_hash)
+        user = User(username=normalized, password_hash=password_hash)
         db.session.add(user)
         db.session.flush()
         return user
+
+    def normalize_username(self, username: str) -> str:
+        return (username or "").strip().lower()
+
+    def validate_username_format(self, username: str) -> None:
+        if not USERNAME_PATTERN.fullmatch(username):
+            raise AppError(
+                "validation_error",
+                "Username format is invalid.",
+                400,
+                details={"rules": USERNAME_POLICY_RULES},
+            )
 
     def issue_nonce(self, session_id: str, purpose: str, ttl_minutes: int) -> str:
         nonce_value = token_urlsafe(32)

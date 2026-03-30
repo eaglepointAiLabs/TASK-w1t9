@@ -37,6 +37,7 @@ def test_login_shows_seeded_credentials_when_local_review_mode_enabled(app):
     assert response.status_code == 200
     assert "Seeded accounts" in html
     assert "Customer#1234" in html
+    assert "Admin#123456" in html
     assert "Finance#12345" in html
 
 

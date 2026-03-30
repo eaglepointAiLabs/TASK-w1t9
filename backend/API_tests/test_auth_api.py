@@ -1,5 +1,5 @@
-def fetch_csrf(client):
-    response = client.get("/login")
+def fetch_csrf(client, page="/login"):
+    response = client.get(page)
     html = response.get_data(as_text=True)
     marker = 'name="csrf_token" value="'
     token = html.split(marker)[1].split('"')[0]
@@ -33,6 +33,75 @@ def test_login_rejects_missing_csrf(client):
 
     assert response.status_code == 403
     assert response.json["code"] == "csrf_required"
+
+
+def test_register_success_creates_customer_and_session(client):
+    csrf_token = fetch_csrf(client, "/register")
+    response = client.post(
+        "/auth/register",
+        json={
+            "username": " Fresh.Customer_1 ",
+            "password": "FreshCustomer#123",
+            "confirm_password": "FreshCustomer#123",
+        },
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+
+    assert response.status_code == 201
+    assert response.json["data"]["username"] == "fresh.customer_1"
+    assert response.json["data"]["roles"] == ["Customer"]
+
+    me_response = client.get("/auth/me", headers={"Accept": "application/json"})
+    assert me_response.status_code == 200
+    assert me_response.json["data"]["username"] == "fresh.customer_1"
+
+
+def test_register_rejects_weak_password(client):
+    csrf_token = fetch_csrf(client, "/register")
+    response = client.post(
+        "/auth/register",
+        json={
+            "username": "freshcustomer",
+            "password": "weakpassword",
+            "confirm_password": "weakpassword",
+        },
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json["code"] == "password_policy_failed"
+
+
+def test_register_rejects_invalid_username(client):
+    csrf_token = fetch_csrf(client, "/register")
+    response = client.post(
+        "/auth/register",
+        json={
+            "username": "<script>alert(1)</script>",
+            "password": "SafePassword#123",
+            "confirm_password": "SafePassword#123",
+        },
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json["code"] == "validation_error"
+
+
+def test_register_rejects_duplicate_username(client):
+    csrf_token = fetch_csrf(client, "/register")
+    response = client.post(
+        "/auth/register",
+        json={
+            "username": "customer",
+            "password": "AnotherPass#123",
+            "confirm_password": "AnotherPass#123",
+        },
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+
+    assert response.status_code == 409
+    assert response.json["code"] == "username_taken"
 
 
 def test_login_lockout_after_repeated_failures(client):

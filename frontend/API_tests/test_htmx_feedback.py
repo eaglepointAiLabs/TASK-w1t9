@@ -2,8 +2,8 @@ from app.repositories.catalog_repository import CatalogRepository
 from app.repositories.community_repository import CommunityRepository
 
 
-def fetch_csrf(client):
-    response = client.get("/login")
+def fetch_csrf(client, page="/login"):
+    response = client.get(page)
     html = response.get_data(as_text=True)
     marker = 'name="csrf_token" value="'
     return html.split(marker)[1].split('"')[0]
@@ -40,6 +40,24 @@ def test_hx_login_and_logout_emit_redirect_and_toast_headers(client):
     assert logout_response.status_code == 200
     assert logout_response.headers["X-Redirect-Location"] == "/login"
     assert logout_response.headers["X-Toast-Message"] == "Signed out."
+
+
+def test_hx_register_emits_redirect_and_toast_headers(client):
+    csrf_token = fetch_csrf(client, "/register")
+    register_response = client.post(
+        "/auth/register",
+        data={
+            "username": "hx.new.customer",
+            "password": "HxCustomer#12345",
+            "confirm_password": "HxCustomer#12345",
+            "csrf_token": csrf_token,
+        },
+        headers={"HX-Request": "true", "X-CSRF-Token": csrf_token},
+    )
+
+    assert register_response.status_code == 201
+    assert register_response.headers["X-Redirect-Location"] == "/"
+    assert register_response.headers["X-Toast-Message"] == "Account created successfully."
 
 
 def test_hx_authentication_failures_return_descriptive_toast_and_redirect(client, app):
