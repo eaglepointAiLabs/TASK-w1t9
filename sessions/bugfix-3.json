@@ -1,0 +1,25 @@
+{
+  "session": "bugfix-3",
+  "date": "2026-03-29",
+  "session_type": "bugfix",
+  "trace": [
+    {
+      "id": "bugfix-2026-03-29-05",
+      "summary": "Completed the remaining manager, refunds, payments workspace, and repo-runbook fixes by shipping a structured dish editor, manager-gated refund approval, callback preview/simulator workspace controls, and deterministic documentation and health-check validation from the actual repo root.",
+      "changes": [
+        "Replaced the manager workspace's hidden JSON-only dish setup with a structured SSR editor for availability windows, option groups, required rules, and value-level price deltas while preserving publish and image-upload workflows.",
+        "Changed high-risk refund approval so Finance Admin users can request refunds but Store Manager users must approve pending step-up refunds with their own password and a dedicated refund:approve nonce.",
+        "Expanded the finance payments workspace to expose callback verification preview and JSAPI simulator actions directly in the UI while keeping the existing import and capture flows.",
+        "Rewrote the repo-root README and frontend README so startup and test commands point at the real repo layout, added a lightweight documentation smoke check, and added a deterministic Docker health check backed by /healthz.",
+        "Updated refund and frontend access-control regression coverage to match the manager-gated approval policy and the shared finance/refunds workspace access."
+      ],
+      "verification": {
+        "command": "cd repo && python scripts\\smoke_check.py && python -m pytest backend\\unit_tests\\test_refund_service.py backend\\API_tests\\test_refund_api.py -q && $env:PYTHONPATH='backend'; python -m pytest frontend\\API_tests\\test_ssr_routes.py frontend\\unit_tests\\test_session_isolation.py -q",
+        "result": "pass",
+        "test_files": 4,
+        "tests": 13,
+        "notes": "Documentation smoke check passed. Backend refund-focused suites: 6 passed. Frontend route/session suites: 7 passed. Browser E2E coverage was intentionally omitted in this pass per user direction."
+      }
+    }
+  ]
+}

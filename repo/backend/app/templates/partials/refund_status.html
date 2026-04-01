@@ -1,0 +1,28 @@
+<article id="refund-card-{{ refund.id }}" class="card refund-card">
+  <h3>Refund {{ refund.refund_reference }}</h3>
+  <p><strong>{{ refund.transaction_reference }}</strong> | {{ refund.status }}</p>
+  <p>Amount: ${{ "%.2f"|format(refund.requested_amount) }}</p>
+  {% if refund.hold_reason %}
+    <p class="danger-text">Risk hold: {{ refund.hold_reason }}</p>
+  {% endif %}
+  {% if refund.stepup_required == "true" and refund.status != "approved" %}
+    {% if "Store Manager" in current_roles %}
+      <p class="muted">Manager approval required. Re-enter the Store Manager password and submit a `refund:approve` nonce.</p>
+      <form method="post" action="{{ url_for('refunds.confirm_stepup', refund_id=refund.id) }}" hx-post="{{ url_for('refunds.confirm_stepup', refund_id=refund.id) }}" hx-target="#refund-card-{{ refund.id }}" hx-swap="outerHTML" class="stack refund-approval-form" data-auto-nonce-purpose="refund:approve">
+        <input type="hidden" name="csrf_token" value="">
+        <label>Manager password <input type="password" name="password" autocomplete="current-password" required></label>
+        <label>Nonce <input type="text" name="nonce" readonly required></label>
+        <button type="submit">Approve high-risk refund</button>
+      </form>
+    {% else %}
+      <p class="muted">Store Manager approval is required before this refund can be released.</p>
+    {% endif %}
+  {% endif %}
+  {% if refund.events %}
+    <div class="stack">
+      {% for event in refund.events %}
+        <p class="muted">{{ event.event_type }}: {{ event.from_status or "new" }} -> {{ event.to_status }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+</article>

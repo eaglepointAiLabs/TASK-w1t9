@@ -23,3 +23,4 @@ fullstack/data/*.db
 fullstack/data/uploads/
 fullstack/data/backups/
 fullstack/data/restore-tests/
+/.tmp

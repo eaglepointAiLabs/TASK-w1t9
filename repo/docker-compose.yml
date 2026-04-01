@@ -1,0 +1,85 @@
+services:
+  web:
+    build:
+      context: ./backend
+    container_name: tablepay-web
+    environment:
+      TABLEPAY_ENV: production
+      SECRET_KEY: 6f5f4f92f54c4d0cb947bc65f8b2a32a_tablepay_review_session_secret
+      KEY_ENCRYPTION_SECRET: 1baf2af44c8748c882a33e80914dc701_tablepay_review_encryption_secret
+      SESSION_COOKIE_SECURE: "true"
+      ALLOW_INSECURE_HTTP: "false"
+      SHOW_SEEDED_CREDENTIALS: "false"
+      BOOTSTRAP_SEED_DATA: "true"
+    ports:
+      - "9100:5000"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  web-e2e:
+    build:
+      context: ./backend
+    profiles: ["e2e"]
+    environment:
+      TABLEPAY_ENV: development
+      SECRET_KEY: e2e_local_review_secret_key_32_chars_minimum
+      KEY_ENCRYPTION_SECRET: e2e_local_review_encryption_key_32_chars
+      SESSION_COOKIE_SECURE: "false"
+      ALLOW_INSECURE_HTTP: "true"
+      SHOW_SEEDED_CREDENTIALS: "false"
+      BOOTSTRAP_SEED_DATA: "true"
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    profiles: ["tests"]
+    environment:
+      TABLEPAY_ENV: test
+      FLASK_ENV: test
+      PYTHONPATH: /workspace/backend
+    working_dir: /workspace
+    command:
+      [
+        "python",
+        "-m",
+        "pytest",
+        "backend/unit_tests",
+        "backend/API_tests",
+        "frontend/API_tests",
+        "frontend/unit_tests",
+        "-q",
+      ]
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    profiles: ["e2e"]
+    depends_on:
+      web-e2e:
+        condition: service_healthy
+    environment:
+      TABLEPAY_E2E_BASE_URL: http://web-e2e:5000
+      PYTHONPATH: /workspace/backend
+    working_dir: /workspace
+    command:
+      [
+        "python",
+        "-m",
+        "pytest",
+        "frontend/e2e",
+        "-q",
+      ]

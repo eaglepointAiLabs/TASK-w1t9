@@ -1,0 +1,61 @@
+{
+  "session": "bugfix-1",
+  "date": "2026-03-29",
+  "session_type": "bugfix",
+  "trace": [
+    {
+      "id": "bugfix-2026-03-29-01",
+      "summary": "Resolved acceptance blockers across frontend delivery and production hardening: secure production config validation, least-privilege role governance, SSR frontend regression coverage, descriptive HX toast/error behavior, and Waitress-based Docker runtime.",
+      "changes": [
+        "Removed insecure production secret defaults, added fail-fast validation for SECRET_KEY and KEY_ENCRYPTION_SECRET, and required secure cookies unless an explicit local HTTP review override is configured.",
+        "Restricted role changes to Finance Admin users only, blocked self-role mutation, and prevented revoking the final Finance Admin assignment.",
+        "Added frontend-facing SSR and HTMX regression coverage under fullstack/frontend/API_tests plus frontend ownership documentation in fullstack/frontend/README.md.",
+        "Improved frontend/backend integration with descriptive HX toast headers, redirect headers for auth failures, safer DOM-based toast rendering, and a fixed-position toast UI.",
+        "Switched Docker runtime from Flask's development server to Waitress and updated runbook/test-runner documentation for the integrated SSR architecture."
+      ],
+      "verification": {
+        "command": "python -m compileall fullstack\\backend fullstack\\frontend && cd fullstack && docker compose up --build -d",
+        "result": "pass",
+        "test_files": 0,
+        "tests": 0,
+        "notes": "Automated tests were not run per user instruction. Static compilation passed, Docker startup succeeded, customer and finance page smoke checks returned 200, privilege-boundary checks returned 403 where expected, and HX login/auth-failure responses returned the expected toast and redirect headers."
+      }
+    },
+    {
+      "id": "bugfix-2026-03-29-02",
+      "summary": "Closed the remaining high and medium acceptance issues from the backend and frontend audits by making the documented test runner green, redacting structured error details safely, and expanding frontend regression coverage without changing the architecture.",
+      "changes": [
+        "Fixed brittle backend API tests by avoiding same-client role switching and making CSRF helpers fail clearly instead of crashing on authenticated /login redirects.",
+        "Added centralized error-detail sanitization so only safe diagnostic fields reach logs and JSON responses, with sensitive keys redacted or omitted.",
+        "Added backend regression coverage for sanitized error contracts.",
+        "Added frontend unit/session-isolation regression tests and wired them into fullstack/run_tests.sh.",
+        "Updated frontend and project docs so standalone and one-command verification paths match the actual test layout."
+      ],
+      "verification": {
+        "command": "cd fullstack && bash ./run_tests.sh",
+        "result": "pass",
+        "test_files": 17,
+        "tests": 78,
+        "notes": "Backend unit tests: 39 passed. Backend API tests: 28 passed. Frontend API tests: 8 passed. Frontend unit tests: 3 passed."
+      }
+    },
+    {
+      "id": "bugfix-2026-03-29-03",
+      "summary": "Cleaned up the remaining time-handling issues by removing deprecated utcnow usage, standardizing UTC timestamp serialization, and fixing naive versus aware comparison paths in availability and security flows.",
+      "changes": [
+        "Added a shared UTC time utility for persistence-safe UTC-now generation, UTC normalization, ISO parsing, and API timestamp serialization.",
+        "Replaced deprecated datetime.utcnow usage across auth, payments, refunds, reconciliation, community throttling, catalog archiving, and ops services and repositories.",
+        "Normalized API timestamp output to UTC Z-suffixed ISO 8601 values for orders, payments, refunds, reconciliation exceptions, and community comments.",
+        "Fixed availability filtering and checkout time comparisons so offset-aware request timestamps are normalized before matching dish availability windows.",
+        "Added focused regression coverage for UTC helpers and offset-aware availability filtering."
+      ],
+      "verification": {
+        "command": "python -m compileall fullstack\\backend",
+        "result": "pass",
+        "test_files": 0,
+        "tests": 0,
+        "notes": "Automated tests were not run in this pass. Static compilation passed after the time utility, controller serialization, and timestamp normalization changes."
+      }
+    }
+  ]
+}

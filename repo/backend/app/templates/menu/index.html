@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Menu</h2>
+  <form class="stack" hx-get="{{ url_for('catalog.list_dishes') }}" hx-target="#dish-results" hx-trigger="change delay:100ms, submit">
+    <label>
+      Category
+      <select name="category">
+        <option value="">All categories</option>
+        {% for category in categories %}
+          <option value="{{ category.slug }}" {% if filters.category == category.slug %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Available at
+      <input type="datetime-local" name="available_at" value="{{ filters.available_at or '' }}">
+    </label>
+    <label>
+      <input type="checkbox" name="include_sold_out" value="1" {% if filters.include_sold_out %}checked{% endif %}>
+      Include sold-out dishes
+    </label>
+    <fieldset>
+      <legend>Tags</legend>
+      {% for tag in tags %}
+        <label>
+          <input type="checkbox" name="tag" value="{{ tag.slug }}" {% if tag.slug in filters.tags %}checked{% endif %}>
+          {{ tag.name }}
+        </label>
+      {% endfor %}
+    </fieldset>
+  </form>
+  <div id="dish-results">
+    {% include "partials/dish_list.html" %}
+  </div>
+</section>
+{% if current_user %}
+<section class="panel">
+  <h2>Cart Snapshot</h2>
+  <div id="cart-panel">
+    <p class="muted">Add an item to load the live cart panel, or open the full cart page.</p>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

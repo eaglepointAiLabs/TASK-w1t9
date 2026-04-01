@@ -1,0 +1,13 @@
+Flask==3.1.0
+Flask-Bcrypt==1.0.1
+Flask-Migrate==4.0.7
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.36
+alembic==1.14.0
+cryptography==44.0.0
+email-validator==2.2.0
+marshmallow==3.23.1
+python-dotenv==1.0.1
+structlog==24.4.0
+pytest==8.3.4
+waitress==3.0.2

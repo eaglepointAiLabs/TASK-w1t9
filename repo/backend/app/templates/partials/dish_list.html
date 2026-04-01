@@ -1,0 +1,23 @@
+<div class="grid">
+  {% for dish in dishes %}
+    <article class="card">
+      {% set primary_image = (dish.images | selectattr('is_primary') | list | first) or (dish.images | first) %}
+      {% if primary_image %}
+        <img src="/uploads/{{ primary_image.stored_path.replace('\\', '/') }}" alt="{{ dish.name }}" class="dish-image">
+      {% endif %}
+      <h3>{{ dish.name }}</h3>
+      <p>{{ dish.description }}</p>
+      <p><strong>${{ "%.2f"|format(dish.base_price) }}</strong></p>
+      <p class="muted">{{ dish.category.name if dish.category else "Uncategorized" }}</p>
+      <p>{% for tag_link in dish.tag_links %}<span class="tag">{{ tag_link.tag.name }}</span>{% endfor %}</p>
+      {% if dish.is_sold_out %}
+        <p class="danger-text">Sold out</p>
+      {% endif %}
+      <div hx-get="{{ url_for('catalog.get_dish', dish_id=dish.id) }}" hx-target="closest article" hx-swap="outerHTML">
+        <button type="button">View options</button>
+      </div>
+    </article>
+  {% else %}
+    <p>No dishes matched these filters.</p>
+  {% endfor %}
+</div>

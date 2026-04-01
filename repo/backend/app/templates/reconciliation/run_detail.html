@@ -1,0 +1,24 @@
+<article class="card">
+  <h3>Run {{ run.id }}</h3>
+  <p>{{ run.source_name }} | {{ run.status }} | matched {{ run.matched_rows }}/{{ run.total_rows }}</p>
+  <div class="stack">
+    {% for exception in run.exceptions %}
+      <section class="panel">
+        <p><strong>{{ exception.transaction_reference }}</strong> | {{ exception.exception_type }} | {{ exception.status }}</p>
+        <pre>{{ exception.details_json }}</pre>
+        {% if exception.status != "resolved" %}
+          <form method="post" action="{{ url_for('reconciliation.resolve_exception', exception_id=exception.id) }}" hx-post="{{ url_for('reconciliation.resolve_exception', exception_id=exception.id) }}" hx-target="#run-detail" class="stack">
+            <input type="hidden" name="csrf_token" value="">
+            <input type="hidden" name="action_type" value="resolve">
+            <label>Reason <input type="text" name="reason" required></label>
+            <button type="submit">Resolve exception</button>
+          </form>
+        {% else %}
+          <p class="muted">Resolved: {{ exception.resolution_reason }}</p>
+        {% endif %}
+      </section>
+    {% else %}
+      <p>No exceptions for this run.</p>
+    {% endfor %}
+  </div>
+</article>

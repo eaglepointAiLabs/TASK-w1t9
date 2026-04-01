@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.pytest-tmp/
+.tmp-tests/
+pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
+instance/
+data/

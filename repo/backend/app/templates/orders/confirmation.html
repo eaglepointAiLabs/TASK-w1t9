@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Order Confirmation</h2>
+  <p class="muted">Order {{ order_view["id"] }} submitted with checkout key {{ order_view["checkout_key"] }}.</p>
+  <div class="stack">
+    {% for item in order_view["items"] %}
+      <article class="card">
+        <h3>{{ item.dish_name }}</h3>
+        <p>Quantity: {{ item.quantity }}</p>
+        <p>Base: ${{ item.unit_base_price }} | Options: ${{ item.unit_options_price }}</p>
+        <p>Line total: <strong>${{ item.line_total_price }}</strong></p>
+        <pre>{{ item.pricing_breakdown | tojson(indent=2) }}</pre>
+      </article>
+    {% endfor %}
+  </div>
+  <p><strong>Total: ${{ order_view["total_amount"] }}</strong></p>
+</section>
+{% endblock %}

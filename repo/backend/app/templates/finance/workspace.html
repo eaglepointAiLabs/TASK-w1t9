@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <span class="eyebrow">Offline gateway controls</span>
+  <h2>Finance Payments Workspace</h2>
+  <p class="muted">Use the live workspace to record offline captures, preview callback verification before import, and simulate JSAPI callbacks against the same signature and dedup pipeline used for real imports.</p>
+</section>
+<section class="grid">
+  <article class="card">
+    <h3>Capture payment</h3>
+    <form id="payment-capture-form" method="post" action="{{ url_for('payments.capture_payment') }}" hx-post="{{ url_for('payments.capture_payment') }}" hx-target="main" hx-swap="innerHTML" class="stack">
+      <input type="hidden" name="csrf_token" value="">
+      <label>Order ID <input type="text" name="order_id" required></label>
+      <label>Transaction reference <input type="text" name="transaction_reference" required></label>
+      <label>Capture amount <input type="number" min="0" step="0.01" name="capture_amount" required></label>
+      <label>Status
+        <select name="status">
+          <option value="pending">Pending</option>
+          <option value="success">Success</option>
+          <option value="failed">Failed</option>
+        </select>
+      </label>
+      <button type="submit">Record capture</button>
+    </form>
+  </article>
+  <article class="card">
+    <h3>Callback import</h3>
+    <form id="payment-import-form" method="post" action="{{ url_for('payments.import_callbacks') }}" hx-post="{{ url_for('payments.import_callbacks') }}" hx-target="main" hx-swap="innerHTML" class="stack">
+      <input type="hidden" name="csrf_token" value="">
+      <label>Callback package JSON
+        <textarea name="package_json" rows="10" placeholder='{"key_id":"simulator-v1","signature":"...","transaction_reference":"...","payload":{"status":"success","occurred_at":"2026-03-28T10:00:00+00:00"}}'></textarea>
+      </label>
+      <button type="submit">Import callback</button>
+    </form>
+  </article>
+  <article class="card">
+    <h3>Verification preview</h3>
+    <form id="payment-verify-form" method="post" action="{{ url_for('payments.verify_callbacks') }}" hx-post="{{ url_for('payments.verify_callbacks') }}" hx-target="main" hx-swap="innerHTML" class="stack">
+      <input type="hidden" name="csrf_token" value="">
+      <label>Callback package JSON
+        <textarea name="package_json" rows="10" placeholder='{"key_id":"simulator-v1","signature":"...","transaction_reference":"...","payload":{"status":"success","occurred_at":"2026-03-28T10:00:00+00:00"}}'></textarea>
+      </label>
+      <button type="submit">Preview verification</button>
+    </form>
+    {% if verification %}
+      <div class="rule-summary">
+        <p><strong>{% if verification.verified %}Verified{% else %}Rejected{% endif %}</strong></p>
+        <p>{{ verification.message }}</p>
+        <p class="muted">Payload hash {{ verification.payload_hash }}</p>
+      </div>
+    {% else %}
+      <p class="muted">Paste any callback package to preview signature validity and payload hash before import.</p>
+    {% endif %}
+  </article>
+  <article class="card">
+    <h3>JSAPI simulator</h3>
+    <form id="payment-simulator-form" method="post" action="{{ url_for('payments.simulate_jsapi_callback') }}" hx-post="{{ url_for('payments.simulate_jsapi_callback') }}" hx-target="main" hx-swap="innerHTML" class="stack">
+      <input type="hidden" name="csrf_token" value="">
+      <label>Transaction reference <input type="text" name="transaction_reference" required></label>
+      <label>Status
+        <select name="status">
+          <option value="success">Success</option>
+          <option value="pending">Pending</option>
+          <option value="failed">Failed</option>
+        </select>
+      </label>
+      <label>Signing key
+        <select name="key_id">
+          {% for key in keys %}
+            <option value="{{ key.key_id }}">{{ key.key_id }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Source name <input type="text" name="source_name" value="workspace_jsapi_simulator"></label>
+      <button type="submit">Simulate callback</button>
+    </form>
+    {% if simulation %}
+      <div class="stack">
+        <p><strong>{{ simulation.import_result.code }}</strong> | {{ simulation.import_result.message }}</p>
+        <pre>{{ simulation.package | tojson(indent=2) }}</pre>
+      </div>
+    {% else %}
+      <p class="muted">Generate a signed simulator callback and import it through the live verification path.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="grid">
+  <article class="card">
+    <h3>Signing Keys</h3>
+    {% for key in keys %}
+      <p><strong>{{ key.key_id }}</strong> | {{ key.algorithm }} | active {{ key.active_from }}{% if key.expires_at %} to {{ key.expires_at }}{% endif %}</p>
+    {% else %}
+      <p>No signing keys configured.</p>
+    {% endfor %}
+  </article>
+  <article class="card">
+    <h3>Payment Transactions</h3>
+    {% for payment in payments %}
+      <div class="stack payment-summary">
+        <p><strong>{{ payment.transaction_reference }}</strong> | {{ payment.status }} | ${{ "%.2f"|format(payment.capture_amount) }}</p>
+        {% for callback in payment.callbacks %}
+          <p class="muted">Callback {{ callback.id }} | {{ callback.verification_status }} | {{ callback.verification_message }}</p>
+        {% else %}
+          <p class="muted">No callbacks imported yet.</p>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>No payment captures yet.</p>
+    {% endfor %}
+  </article>
+</section>
+{% endblock %}
