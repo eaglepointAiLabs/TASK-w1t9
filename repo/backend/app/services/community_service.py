@@ -112,6 +112,12 @@ class CommunityService:
     def _validate_target(self, target_type: str, target_id: str) -> None:
         if target_type not in {"dish", "post"} or not target_id:
             raise AppError("validation_error", "Invalid target.", 400)
+        if target_type == "post":
+            if self.repository.get_post(target_id) is None:
+                raise AppError("not_found", "Post not found.", 404)
+            return
+        if self.repository.get_dish(target_id) is None:
+            raise AppError("not_found", "Dish not found.", 404)
 
     def _enforce_throttle(self, user_id: str, action_type: str, target_type: str, target_id: str) -> None:
         now = utc_now_naive()

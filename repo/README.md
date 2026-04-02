@@ -69,7 +69,7 @@ Available when bootstrap seeding is enabled (`BOOTSTRAP_SEED_DATA=true`).
 
 ## Disaster Recovery Runbook
 
-See [docs/disaster-recovery-runbook.md](docs/disaster-recovery-runbook.md) for a full offline backup and restore drill procedure, validation checklist, and evidence template.
+See [../docs/disaster-recovery-runbook.md](../docs/disaster-recovery-runbook.md) for a full offline backup and restore drill procedure, validation checklist, and evidence template.
 
 ## Stop and Cleanup
 

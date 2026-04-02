@@ -132,6 +132,7 @@ def enqueue_reconciliation_import():
 
 
 def list_runs():
+    _require_authenticated_user()
     runs = _service().list_runs(g.current_roles)
     return jsonify(
         {
@@ -153,6 +154,7 @@ def list_runs():
 
 
 def get_run(run_id: str):
+    _require_authenticated_user()
     run = _service().get_run(run_id, g.current_roles)
     if request.headers.get("HX-Request") == "true":
         return render_template("reconciliation/run_detail.html", run=run)

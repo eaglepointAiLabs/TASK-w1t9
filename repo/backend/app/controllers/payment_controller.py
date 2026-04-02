@@ -15,6 +15,11 @@ def _service():
     return PaymentService(PaymentRepository())
 
 
+def _require_authenticated_user():
+    if g.current_user is None:
+        raise AppError("authentication_required", "Authentication is required.", 401)
+
+
 def _serialize_payment(payment):
     return {
         "id": payment.id,
@@ -59,6 +64,7 @@ def finance_workspace():
 
 
 def capture_payment():
+    _require_authenticated_user()
     payload = request.get_json(silent=True) or request.form.to_dict(flat=True)
     payment = _service().capture_payment(payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
@@ -68,6 +74,7 @@ def capture_payment():
 
 
 def import_callbacks():
+    _require_authenticated_user()
     payload = _load_callback_payload()
     response = _service().import_callback(payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
@@ -78,6 +85,7 @@ def import_callbacks():
 
 
 def verify_callbacks():
+    _require_authenticated_user()
     payload = _load_callback_payload()
     verification = _service().verify_callback_preview(payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
@@ -89,6 +97,7 @@ def verify_callbacks():
 
 
 def simulate_jsapi_callback():
+    _require_authenticated_user()
     payload = request.get_json(silent=True) or request.form.to_dict(flat=True)
     result = _service().simulate_jsapi_callback(payload, g.current_roles)
     status_code = 200 if result["import_result"]["code"] == "ok" else 409
@@ -113,6 +122,7 @@ def simulate_jsapi_callback():
 
 
 def get_payment(payment_id: str):
+    _require_authenticated_user()
     payment = _service().get_payment(payment_id, g.current_roles)
     return jsonify({"code": "ok", "message": "Payment fetched.", "data": _serialize_payment(payment)})
 
