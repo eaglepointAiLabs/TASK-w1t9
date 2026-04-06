@@ -87,8 +87,12 @@ class CommunityService:
         return report
 
     def block_user(self, user_id: str, blocked_user_id: str):
+        if not blocked_user_id:
+            raise AppError("validation_error", "blocked_user_id is required.", 400)
         if user_id == blocked_user_id:
             raise AppError("validation_error", "You cannot block yourself.", 400)
+        if self.repository.get_user(blocked_user_id) is None:
+            raise AppError("not_found", "User not found.", 404)
         existing = self.repository.get_block(user_id, blocked_user_id)
         if existing is None:
             self.repository.create_block(user_id=user_id, blocked_user_id=blocked_user_id)
@@ -96,6 +100,10 @@ class CommunityService:
         return {"blocked_user_id": blocked_user_id}
 
     def unblock_user(self, user_id: str, blocked_user_id: str):
+        if not blocked_user_id:
+            raise AppError("validation_error", "blocked_user_id is required.", 400)
+        if self.repository.get_user(blocked_user_id) is None:
+            raise AppError("not_found", "User not found.", 404)
         existing = self.repository.get_block(user_id, blocked_user_id)
         if existing is None:
             raise AppError("not_found", "Block record not found.", 404)

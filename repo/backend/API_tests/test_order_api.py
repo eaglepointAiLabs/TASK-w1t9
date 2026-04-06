@@ -89,6 +89,38 @@ def test_checkout_creates_order_and_get_order(client, app):
     assert order_response.json["data"]["submitted_at"].endswith("Z")
 
 
+def test_list_orders_with_pagination(client, app):
+    csrf_token = login(client, "customer", "Customer#1234")
+    with app.app_context():
+        dish = CatalogRepository().get_dish_by_slug("citrus-tofu-bowl")
+
+    client.post(
+        "/api/cart/items",
+        json={"dish_id": dish.id, "quantity": 1, "selected_options": {}},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    client.post(
+        "/api/orders/checkout",
+        json={"checkout_key": "api-order-list-pagination"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+
+    response = client.get("/api/orders?page=1&page_size=1", headers={"Accept": "application/json"})
+    assert response.status_code == 200
+    assert len(response.json["data"]) <= 1
+    assert response.json["pagination"]["page"] == 1
+    assert response.json["pagination"]["page_size"] == 1
+    assert "total_items" in response.json["pagination"]
+    assert "has_next" in response.json["pagination"]
+    assert "has_prev" in response.json["pagination"]
+
+
+def test_list_orders_requires_authentication(client):
+    response = client.get("/api/orders", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
 def test_order_access_isolated_between_users(app):
     customer_client = app.test_client()
     manager_client = app.test_client()

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l c:/Users/PC/Documents/Eaglepoint/TASK-9/TablePay-Restaurant-Ordering/repo/backend/API_tests/*.py)"
+    ]
+  }
+}

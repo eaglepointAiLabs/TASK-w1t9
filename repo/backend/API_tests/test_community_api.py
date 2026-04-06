@@ -69,6 +69,17 @@ def test_community_actions_reject_missing_targets(client):
     assert report.json["code"] == "not_found"
 
 
+def test_block_rejects_nonexistent_user(client):
+    csrf_token = login(client, "customer", "Customer#1234")
+    block = client.post(
+        "/api/community/blocks",
+        json={"blocked_user_id": "nonexistent-user-id"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert block.status_code == 404
+    assert block.json["code"] == "not_found"
+
+
 def test_block_and_unblock_behavior(client, app):
     from app.repositories.auth_repository import AuthRepository
 
@@ -106,3 +117,64 @@ def test_unblock_rejects_cross_user_block_access(app):
     )
     assert denied.status_code == 404
     assert denied.json["code"] == "not_found"
+
+
+def test_community_actions_require_authenticated_session(client):
+    csrf_token = fetch_csrf(client)
+
+    like = client.post(
+        "/api/community/likes/toggle",
+        json={"target_type": "post", "target_id": "any-id"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert like.status_code == 401
+    assert like.json["code"] == "authentication_required"
+
+    favorite = client.post(
+        "/api/community/favorites/toggle",
+        json={"target_type": "post", "target_id": "any-id"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert favorite.status_code == 401
+    assert favorite.json["code"] == "authentication_required"
+
+    comment = client.post(
+        "/api/community/comments",
+        json={"target_type": "post", "target_id": "any-id", "body": "hello"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert comment.status_code == 401
+    assert comment.json["code"] == "authentication_required"
+
+    report = client.post(
+        "/api/community/reports",
+        json={"target_type": "post", "target_id": "any-id", "reason_code": "abuse"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert report.status_code == 401
+    assert report.json["code"] == "authentication_required"
+
+    block = client.post(
+        "/api/community/blocks",
+        json={"blocked_user_id": "any-id"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert block.status_code == 401
+    assert block.json["code"] == "authentication_required"
+
+    posts = client.get("/api/community/posts", headers={"Accept": "application/json"})
+    assert posts.status_code == 401
+    assert posts.json["code"] == "authentication_required"
+
+
+def test_community_posts_list_with_pagination(client, app):
+    csrf_token = login(client, "customer", "Customer#1234")
+
+    response = client.get("/api/community/posts?page=1&page_size=1", headers={"Accept": "application/json"})
+    assert response.status_code == 200
+    assert len(response.json["data"]) <= 1
+    assert response.json["pagination"]["page"] == 1
+    assert response.json["pagination"]["page_size"] == 1
+    assert "total_items" in response.json["pagination"]
+    assert "has_next" in response.json["pagination"]
+    assert "has_prev" in response.json["pagination"]

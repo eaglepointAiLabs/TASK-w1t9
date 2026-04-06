@@ -228,6 +228,39 @@ def test_malformed_callback_timestamp_is_rejected_and_non_mutating(app):
     assert payment_response.json["data"]["status"] == "pending"
 
 
+def test_list_payments_with_pagination(app):
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-list")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+    finance_client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-pay-list-1",
+            "capture_amount": "10.25",
+            "status": "pending",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+
+    response = finance_client.get("/api/payments?page=1&page_size=1", headers={"Accept": "application/json"})
+    assert response.status_code == 200
+    assert len(response.json["data"]) <= 1
+    assert response.json["pagination"]["page"] == 1
+    assert response.json["pagination"]["page_size"] == 1
+    assert "total_items" in response.json["pagination"]
+    assert "has_next" in response.json["pagination"]
+    assert "has_prev" in response.json["pagination"]
+
+
+def test_list_payments_requires_authenticated_session(client):
+    response = client.get("/api/payments", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
 def test_jsapi_simulator_endpoint_imports_callback(app):
     customer_client = app.test_client()
     finance_client = app.test_client()

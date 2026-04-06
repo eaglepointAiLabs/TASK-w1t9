@@ -5,10 +5,14 @@ from datetime import datetime
 from sqlalchemy import and_, func, or_, select
 
 from app.extensions import db
-from app.models import Comment, CooldownEvent, Dish, Favorite, Like, Post, Report, UserBlock
+from app.models import Comment, CooldownEvent, Dish, Favorite, Like, Post, Report, User, UserBlock
 
 
 class CommunityRepository:
+    def get_user(self, user_id: str) -> User | None:
+        stmt = select(User).where(User.id == user_id)
+        return db.session.scalar(stmt)
+
     def get_dish(self, dish_id: str) -> Dish | None:
         stmt = select(Dish).where(Dish.id == dish_id)
         return db.session.scalar(stmt)

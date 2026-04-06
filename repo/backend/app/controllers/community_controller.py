@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import g, jsonify, render_template, request
 
+from app.controllers.pagination import paginate_collection, parse_pagination_args
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.community_repository import CommunityRepository
 from app.services.errors import AppError
@@ -54,6 +55,22 @@ def community_page():
     posts = service.list_posts()
     post_cards = [_build_post_view(post, g.current_user.id) for post in posts]
     return render_template("community/index.html", posts=post_cards)
+
+
+def list_posts():
+    if g.current_user is None:
+        raise AppError("authentication_required", "Authentication is required.", 401)
+    posts = _service().list_posts()
+    pagination = parse_pagination_args(request.args)
+    page_posts, pagination_meta = paginate_collection(posts, pagination)
+    return jsonify(
+        {
+            "code": "ok",
+            "message": "Posts fetched.",
+            "data": [_build_post_view(post, g.current_user.id) for post in page_posts],
+            "pagination": pagination_meta,
+        }
+    )
 
 
 def toggle_like():

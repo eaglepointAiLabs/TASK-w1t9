@@ -1,8 +1,10 @@
 # TablePay
 
+> See the [project root README](../README.md) for full documentation, architecture overview, and configuration reference.
+
 ## Docker-Only Run and Test
 
-Run all commands from the repository root.
+Run all commands from this directory (`repo/`).
 
 ## Start the App
 
@@ -67,9 +69,14 @@ Available when bootstrap seeding is enabled (`BOOTSTRAP_SEED_DATA=true`).
 - finance / Finance#12345
 - moderator / Moderator#123
 
-## Disaster Recovery Runbook
+## Documentation
 
-See [../docs/disaster-recovery-runbook.md](../docs/disaster-recovery-runbook.md) for a full offline backup and restore drill procedure, validation checklist, and evidence template.
+All project documentation lives in the [`docs/`](../docs/) directory at the repository root:
+
+- [API Specification](../docs/api-spec.md)
+- [Architecture & Design](../docs/design.md)
+- [Disaster Recovery Runbook](../docs/disaster-recovery-runbook.md)
+- [Design Questions](../docs/questions.md)
 
 ## Stop and Cleanup
 

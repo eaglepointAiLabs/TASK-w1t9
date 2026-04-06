@@ -198,11 +198,29 @@ Behavior:
 - Prevents negative inventory
 - Returns the existing order when the same user retries the same `checkout_key`
 
+### `GET /api/orders`
+
+Returns the authenticated user's orders.
+
+Query parameters:
+
+- `page` optional positive integer
+- `page_size` optional positive integer
+
 ### `GET /api/orders/{id}`
 
 Returns the persisted order snapshot with line-item pricing breakdowns.
 
 ## Payments
+
+### `GET /api/payments`
+
+Finance Admin only. Returns payment transactions.
+
+Query parameters:
+
+- `page` optional positive integer
+- `page_size` optional positive integer
 
 ### `POST /api/payments/capture`
 
@@ -347,6 +365,15 @@ Query parameters:
 
 ## Community
 
+### `GET /api/community/posts`
+
+Authenticated users only. Returns community posts.
+
+Query parameters:
+
+- `page` optional positive integer
+- `page_size` optional positive integer
+
 ### `POST /api/community/likes/toggle`
 
 ### `POST /api/community/favorites/toggle`
@@ -382,6 +409,8 @@ Allowed `reason_code` values:
 - `other`
 
 ### `POST /api/community/blocks`
+
+`blocked_user_id` must reference an existing user. Returns `404` if the target user does not exist.
 
 ### `DELETE /api/community/blocks/{blockedUserId}`
 
@@ -488,6 +517,7 @@ Decrypts the latest backup into the configured restore-test directory and record
 ## Validation and response notes
 
 - All write endpoints require a valid `X-CSRF-Token` for cookie-backed sessions.
+- All API endpoints that require authorization check authentication first: unauthenticated callers always receive `401` before any `403` role check is evaluated.
 - Manager, Finance Admin, Moderator, and governance routes enforce both route-level and service-level role checks.
 - Refund and role-change endpoints also require a valid single-use nonce within five minutes.
 - Role changes reject self-mutation and preserve at least one Finance Admin assignment.

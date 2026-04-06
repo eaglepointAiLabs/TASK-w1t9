@@ -5,6 +5,7 @@ from app.controllers.community_controller import (
     community_page,
     create_comment,
     create_report,
+    list_posts,
     toggle_favorite,
     toggle_like,
     unblock_user,
@@ -14,6 +15,7 @@ from app.controllers.community_controller import (
 community_bp = Blueprint("community", __name__)
 
 community_bp.get("/community")(community_page)
+community_bp.get("/api/community/posts")(list_posts)
 community_bp.post("/api/community/likes/toggle")(toggle_like)
 community_bp.post("/api/community/favorites/toggle")(toggle_favorite)
 community_bp.post("/api/community/comments")(create_comment)

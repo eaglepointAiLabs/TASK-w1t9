@@ -7,6 +7,7 @@ from app.controllers.order_controller import (
     delete_cart_item,
     get_cart,
     get_order,
+    list_orders,
     update_cart_item,
 )
 
@@ -18,5 +19,6 @@ orders_bp.get("/api/cart")(get_cart)
 orders_bp.post("/api/cart/items")(add_cart_item)
 orders_bp.patch("/api/cart/items/<item_id>")(update_cart_item)
 orders_bp.delete("/api/cart/items/<item_id>")(delete_cart_item)
+orders_bp.get("/api/orders")(list_orders)
 orders_bp.post("/api/orders/checkout")(checkout)
 orders_bp.get("/api/orders/<order_id>")(get_order)

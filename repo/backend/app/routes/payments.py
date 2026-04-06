@@ -5,6 +5,7 @@ from app.controllers.payment_controller import (
     finance_workspace,
     get_payment,
     import_callbacks,
+    list_payments,
     simulate_jsapi_callback,
     verify_callbacks,
 )
@@ -13,6 +14,7 @@ from app.controllers.payment_controller import (
 payments_bp = Blueprint("payments", __name__)
 
 payments_bp.get("/finance/payments")(finance_workspace)
+payments_bp.get("/api/payments")(list_payments)
 payments_bp.post("/api/payments/capture")(capture_payment)
 payments_bp.post("/api/payments/callbacks/import")(import_callbacks)
 payments_bp.post("/api/payments/callbacks/verify")(verify_callbacks)

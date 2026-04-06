@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from flask import g, jsonify, render_template, request
 
+from app.controllers.pagination import paginate_collection, parse_pagination_args
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.catalog_repository import CatalogRepository
 from app.repositories.order_repository import OrderRepository
@@ -124,6 +125,20 @@ def checkout():
             "Checkout completed.",
         )
     return jsonify({"code": "ok", "message": "Checkout completed.", "data": _serialize_order(order)})
+
+
+def list_orders():
+    orders = _service().list_orders(g.current_user.id)
+    pagination = parse_pagination_args(request.args)
+    page_orders, pagination_meta = paginate_collection(orders, pagination)
+    return jsonify(
+        {
+            "code": "ok",
+            "message": "Orders fetched.",
+            "data": [_serialize_order(order) for order in page_orders],
+            "pagination": pagination_meta,
+        }
+    )
 
 
 def get_order(order_id: str):

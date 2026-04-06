@@ -90,6 +90,34 @@ def test_refund_create_requires_store_manager_approval_for_high_risk_flow(app):
     assert risk_events.json["pagination"]["page_size"] == 1
 
 
+def test_refund_endpoints_require_authenticated_session(client):
+    csrf_token = fetch_csrf(client)
+
+    create = client.post(
+        "/api/refunds",
+        json={"transaction_reference": "anon-1", "refund_amount": "1.00", "route": "offline_wechat_simulator", "nonce": "n"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert create.status_code == 401
+    assert create.json["code"] == "authentication_required"
+
+    get = client.get("/api/refunds/nonexistent", headers={"Accept": "application/json"})
+    assert get.status_code == 401
+    assert get.json["code"] == "authentication_required"
+
+    stepup = client.post(
+        "/api/refunds/nonexistent/confirm-stepup",
+        json={"password": "pw", "nonce": "n"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert stepup.status_code == 401
+    assert stepup.json["code"] == "authentication_required"
+
+    risk_events = client.get("/api/refunds/risk-events", headers={"Accept": "application/json"})
+    assert risk_events.status_code == 401
+    assert risk_events.json["code"] == "authentication_required"
+
+
 def test_nonce_replay_rejected(client, app):
     finance_csrf = login(client, "finance", "Finance#12345")
     nonce = issue_nonce(client, finance_csrf, "refund:create")

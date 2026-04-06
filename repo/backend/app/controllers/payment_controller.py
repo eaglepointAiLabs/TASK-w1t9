@@ -4,6 +4,7 @@ import json
 
 from flask import g, jsonify, render_template, request
 
+from app.controllers.pagination import paginate_collection, parse_pagination_args
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.payment_repository import PaymentRepository
 from app.services.errors import AppError
@@ -118,6 +119,21 @@ def simulate_jsapi_callback():
             }
         ),
         status_code,
+    )
+
+
+def list_payments():
+    _require_authenticated_user()
+    payments, _keys = _service().list_workspace(g.current_roles)
+    pagination = parse_pagination_args(request.args)
+    page_payments, pagination_meta = paginate_collection(payments, pagination)
+    return jsonify(
+        {
+            "code": "ok",
+            "message": "Payments fetched.",
+            "data": [_serialize_payment(payment) for payment in page_payments],
+            "pagination": pagination_meta,
+        }
     )
 
 

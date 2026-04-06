@@ -178,6 +178,9 @@ class OrderService:
         logger.info("order.checkout_completed", user_id=user_id, order_id=order.id, checkout_key=checkout_key)
         return self.repository.find_order_by_checkout_key(user_id, checkout_key)
 
+    def list_orders(self, user_id: str):
+        return self.repository.list_orders_for_user(user_id)
+
     def get_order(self, user_id: str, order_id: str):
         order = self.repository.get_order(order_id, user_id)
         if order is None:

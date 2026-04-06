@@ -111,6 +111,15 @@ class OrderRepository:
         db.session.flush()
         return reservation
 
+    def list_orders_for_user(self, user_id: str) -> list[Order]:
+        stmt = (
+            select(Order)
+            .options(joinedload(Order.items), joinedload(Order.status_history))
+            .where(Order.user_id == user_id)
+            .order_by(Order.created_at.desc())
+        )
+        return list(db.session.execute(stmt).unique().scalars())
+
     def get_order(self, order_id: str, user_id: str) -> Order | None:
         stmt = (
             select(Order)
