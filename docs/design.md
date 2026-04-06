@@ -11,7 +11,7 @@ TablePay uses a single Flask service with a clean API boundary:
 - UTC-normalized timestamps for persisted security, payment, refund, reconciliation, and ops events, with API serialization emitted as UTC `Z` timestamps
 
 The frontend is not a SPA. Pages remain server-rendered and progressively enhanced through a local helper script, so there is no mandatory internet dependency.
-The delivery keeps the source of truth in `fullstack/backend/app/templates` and `fullstack/backend/app/static`, while `fullstack/frontend` exists for frontend-facing docs and regression tests.
+The delivery keeps the source of truth in `repo/backend/app/templates` and `repo/backend/app/static`, while `repo/frontend` exists for frontend-facing docs and regression tests.
 
 ## Security
 
@@ -25,13 +25,20 @@ The delivery keeps the source of truth in `fullstack/backend/app/templates` and 
 - Gateway signing keys and local backups are encrypted at rest with a Fernet key derived from local configuration.
 - Structured logs include request id, actor, endpoint, error class, severity, and context.
 
+### Data isolation model
+
+TablePay is a single-tenant, locally deployed system. Data isolation follows two complementary strategies:
+
+- **User-owned resources** (orders, carts, community blocks) are scoped by `user_id` in every query. A user can only access their own orders, carts, and block lists. Cross-user access returns `404`.
+- **Role-scoped operational resources** (payments, refunds, reconciliation runs, moderation queue, ops jobs) are accessible to all holders of the required role (Finance Admin, Store Manager, Moderator). This is intentional: these are shared operational workspaces where all authorized operators need full visibility to perform reconciliation, approve refunds, and resolve moderation items. Individual actions within these workspaces are attributed via `operator_user_id` / `actor_user_id` fields for audit trail purposes.
+
 ## Catalog and ordering
 
 - `dishes` hold publication state, sold-out state, sort order, archive timestamps, and base pricing.
 - `dish_categories`, `dish_tags`, and `dish_tag_map` support menu filtering.
 - `dish_availability_windows` allow time-boxed dish visibility checks.
 - `dish_options`, `dish_option_values`, and `dish_option_rules` enforce required single-select and bounded multi-select flows.
-- `dish_images` store validated local image uploads under `fullstack/data/uploads`.
+- `dish_images` store validated local image uploads under `repo/data/uploads`.
 - Customer browsing uses the same query path for HTML partial updates and JSON responses with cache support on hot reads.
 - `carts` and `cart_items` store mutable pre-order state for each authenticated user.
 - `orders`, `order_items`, and `order_status_history` persist immutable checkout snapshots and audit-friendly status transitions.
@@ -87,7 +94,7 @@ Container startup executes:
 
 ## Testing strategy
 
-- `fullstack/backend/unit_tests`: service and policy tests across auth, catalog, ordering, payments, reconciliation, refunds, community, moderation, and ops
-- `fullstack/backend/API_tests`: endpoint coverage across the same surfaces
-- `fullstack/frontend/API_tests`: SSR route and HTMX feedback coverage for login redirects, role-bound page access, and descriptive frontend error/success states
-- `fullstack/frontend/unit_tests`: frontend session-isolation and role-switch regression coverage without introducing a separate SPA test harness
+- `repo/backend/unit_tests`: service and policy tests across auth, catalog, ordering, payments, reconciliation, refunds, community, moderation, and ops
+- `repo/backend/API_tests`: endpoint coverage across the same surfaces
+- `repo/frontend/API_tests`: SSR route and HTMX feedback coverage for login redirects, role-bound page access, and descriptive frontend error/success states
+- `repo/frontend/unit_tests`: frontend session-isolation and role-switch regression coverage without introducing a separate SPA test harness

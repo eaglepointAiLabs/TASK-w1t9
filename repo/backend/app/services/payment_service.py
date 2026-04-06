@@ -71,6 +71,9 @@ class PaymentService:
 
     def verify_callback_preview(self, package: dict, current_roles: list[str]) -> dict:
         self.rbac.require_roles(current_roles, ["Finance Admin"])
+        reference = (package.get("transaction_reference") or "").strip()
+        if reference:
+            self._assert_reference_binding(package, reference)
         return self._verify_package(package)
 
     def import_callback(self, package: dict, current_roles: list[str]) -> dict:
@@ -78,6 +81,7 @@ class PaymentService:
         reference = (package.get("transaction_reference") or "").strip()
         if not reference:
             raise AppError("validation_error", "transaction_reference is required.", 400)
+        self._assert_reference_binding(package, reference)
 
         active_key = self.repository.get_active_dedup_key(reference)
         if active_key is not None:
@@ -216,6 +220,18 @@ class PaymentService:
             "message": "Signature verified." if verified else "Signature verification failed.",
             "payload_hash": payload_hash,
         }
+
+    @staticmethod
+    def _assert_reference_binding(package: dict, reference: str) -> None:
+        payload = package.get("payload") or {}
+        payload_reference = (payload.get("transaction_reference") or "").strip()
+        if payload_reference and payload_reference != reference:
+            raise AppError(
+                "reference_mismatch",
+                "package.transaction_reference must match payload.transaction_reference.",
+                400,
+                {"package_reference": reference, "payload_reference": payload_reference},
+            )
 
     @staticmethod
     def _normalize_datetime(value: datetime) -> datetime:

@@ -2,11 +2,11 @@
 
 ## 1) Frontend placement is ambiguous
 
-The Gap: The prompt requires all source under fullstack and also mentions a fullstack/frontend directory, while allowing Flask templates/static as an alternative. This leaves ownership and structure unclear for implementation and review.
+The Gap: The prompt mentions a frontend directory while allowing Flask templates/static as an alternative. This leaves ownership and structure unclear for implementation and review.
 
-The Interpretation: We will treat frontend delivery as server-rendered templates/static assets in Flask, and keep fullstack/frontend as documentation/test placeholder unless a separate frontend runtime is explicitly required.
+The Interpretation: We treat frontend delivery as server-rendered templates/static assets in Flask, and keep `repo/frontend` as a documentation/test placeholder unless a separate frontend runtime is explicitly required.
 
-Proposed Implementation: Keep UI in backend template/static layers with a strict API boundary (HTML pages + REST endpoints). Document this architecture explicitly in fullstack/frontend/README.md and fullstack/README.md so reviewers can verify where frontend logic lives.
+Proposed Implementation: Keep UI in backend template/static layers with a strict API boundary (HTML pages + REST endpoints). Document this architecture explicitly in the project README and `docs/design.md` so reviewers can verify where frontend logic lives.
 
 ## 2) Role governance authority is not fully specified
 

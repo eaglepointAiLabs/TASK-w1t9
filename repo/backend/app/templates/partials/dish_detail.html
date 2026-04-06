@@ -9,8 +9,14 @@
       <input type="number" name="quantity" min="1" value="1">
     </label>
     {% for option in dish.options %}
-      <fieldset>
-        <legend>{{ option.name }}</legend>
+      <fieldset
+        hx-post="{{ url_for('catalog.validate_dish_selection', dish_id=dish.id) }}"
+        hx-trigger="change"
+        hx-target="#selection-status-{{ dish.id }}"
+        hx-include="closest form"
+        hx-swap="innerHTML"
+      >
+        <legend>{{ option.name }}{% for rule in option.rules %}{% if rule.is_required %} <span class="required-marker">(required)</span>{% endif %}{% endfor %}</legend>
         {% for value in option.values %}
           <label>
             <input type="{{ 'checkbox' if option.display_type == 'multi_select' else 'radio' }}" name="option_{{ option.code }}" value="{{ value.value_code }}">
@@ -19,7 +25,7 @@
         {% endfor %}
       </fieldset>
     {% endfor %}
+    <div id="selection-status-{{ dish.id }}" class="selection-feedback"></div>
     <button type="submit">Add to cart</button>
   </form>
-  <div id="selection-status-{{ dish.id }}"></div>
 </article>

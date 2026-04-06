@@ -119,3 +119,26 @@ def test_hx_forbidden_page_returns_descriptive_error_feedback(client):
     assert response.status_code == 403
     assert response.headers["X-Toast-Message"] == "You do not have permission to access this resource."
     assert response.headers["X-Error-Code"] == "forbidden"
+
+
+def test_hx_selection_check_returns_feedback_on_option_change(client, app):
+    csrf_token = login(client, "customer", "Customer#1234")
+    with app.app_context():
+        dish = CatalogRepository().get_dish_by_slug("signature-beef-noodles")
+
+    response = client.post(
+        f"/api/dishes/{dish.id}/selection-check",
+        data={"option_spice_level": "mild", "csrf_token": csrf_token},
+        headers={"HX-Request": "true", "X-CSRF-Token": csrf_token},
+    )
+    assert response.status_code == 400
+    assert response.headers.get("X-Toast-Message")
+    assert response.headers.get("X-Error-Code") == "required_options_missing"
+
+    full_selection = client.post(
+        f"/api/dishes/{dish.id}/selection-check",
+        data={"option_spice_level": "hot", "option_portion_size": "large", "csrf_token": csrf_token},
+        headers={"HX-Request": "true", "X-CSRF-Token": csrf_token},
+    )
+    assert full_selection.status_code == 200
+    assert full_selection.headers.get("X-Toast-Message") == "Selections look good."

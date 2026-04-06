@@ -73,39 +73,25 @@ Key environment variables (set before `docker compose up`):
 
 | Variable                   | Default              | Description                                      |
 |----------------------------|----------------------|--------------------------------------------------|
-| `TABLEPAY_ENV`             | `production`         | Config profile (`development`, `testing`, `production`) |
+| `TABLEPAY_ENV`             | `production`         | Config profile (`development`, `test`, `production`) |
 | `BOOTSTRAP_SEED_DATA`      | `true`               | Seed demo users, dishes, and community posts     |
 | `SECRET_KEY`               | (auto-generated)     | Flask session secret                             |
 | `KEY_ENCRYPTION_SECRET`    | `tablepay-local-encryption-key` | Fernet key for signing-key encryption at rest |
 | `SESSION_COOKIE_SECURE`    | `true` (production)  | Enforce HTTPS-only session cookies               |
-| `NIGHTLY_BACKUP_HOUR_UTC`  | `3`                  | Hour (UTC) for automatic encrypted backup        |
+| `NIGHTLY_BACKUP_HOUR_UTC`  | `2`                  | Hour (UTC) for automatic encrypted backup        |
 
 ## Running Tests
 
-A unified `run_tests.sh` script is provided at the project root for one-click execution. All test suites run through `pytest` with verbose output including per-test pass/fail status and a summary count.
+A unified `run_tests.sh` script is provided in the `repo/` directory for one-click execution. All test suites run through `pytest` with verbose output including per-test pass/fail status and a summary count.
 
-### One-Click Execution (Docker)
-
-```bash
-./run_tests.sh
-# or explicitly:
-./run_tests.sh --docker
-```
-
-### One-Click Execution (Local, no Docker)
-
-```bash
-./run_tests.sh --local
-```
-
-### From the repo/ Directory
+### One-Click Full Suite (Docker)
 
 ```bash
 cd repo
 ./run_tests.sh
-# or directly:
-docker compose --profile tests run --rm --build tests
 ```
+
+This runs all backend unit tests, backend API tests, frontend API tests, and frontend unit tests inside Docker via `docker compose`.
 
 ### Targeted Test Suites
 

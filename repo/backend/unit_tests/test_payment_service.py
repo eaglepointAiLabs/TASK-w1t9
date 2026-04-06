@@ -225,6 +225,37 @@ def test_verify_callback_rejects_missing_fields(app):
             assert getattr(exc, "code", "") == "validation_error"
 
 
+def test_import_callback_rejects_reference_mismatch(app):
+    order = _create_order(app)
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        payment = payment_service.capture_payment(
+            {"order_id": order.id, "transaction_reference": "pay-mismatch-1", "capture_amount": "10.25", "status": "pending"},
+            ["Finance Admin"],
+        )
+        mismatched_package = _package("simulator-secret-v1", "simulator-v1", "pay-mismatch-1", "2026-03-28T10:00:00+00:00")
+        mismatched_package["transaction_reference"] = "different-reference"
+
+        try:
+            payment_service.import_callback(mismatched_package, ["Finance Admin"])
+            assert False, "Should have raised reference_mismatch"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "reference_mismatch"
+
+
+def test_verify_callback_rejects_reference_mismatch(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        mismatched_package = _package("simulator-secret-v1", "simulator-v1", "verify-ref-1", "2026-03-28T10:00:00+00:00")
+        mismatched_package["transaction_reference"] = "different-reference"
+
+        try:
+            payment_service.verify_callback_preview(mismatched_package, ["Finance Admin"])
+            assert False, "Should have raised reference_mismatch"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "reference_mismatch"
+
+
 def test_import_callback_rejects_missing_reference(app):
     with app.app_context():
         payment_service = PaymentService(PaymentRepository())

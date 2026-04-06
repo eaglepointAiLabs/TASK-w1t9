@@ -255,6 +255,35 @@ def test_list_payments_with_pagination(app):
     assert "has_prev" in response.json["pagination"]
 
 
+def test_callback_import_rejects_reference_mismatch(app):
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-mismatch")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+    finance_client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-pay-mismatch",
+            "capture_amount": "10.25",
+            "status": "pending",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+
+    package = signed_package("simulator-secret-v1", "simulator-v1", "api-pay-mismatch", "2026-03-28T10:00:00+00:00")
+    package["transaction_reference"] = "different-reference"
+
+    response = finance_client.post(
+        "/api/payments/callbacks/import",
+        json=package,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert response.status_code == 400
+    assert response.json["code"] == "reference_mismatch"
+
+
 def test_list_payments_requires_authenticated_session(client):
     response = client.get("/api/payments", headers={"Accept": "application/json"})
     assert response.status_code == 401

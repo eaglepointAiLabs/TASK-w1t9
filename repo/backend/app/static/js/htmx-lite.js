@@ -256,6 +256,49 @@ function wireForms() {
     });
   });
 
+  document
+    .querySelectorAll("[hx-post]:not(form), [hx-get]:not(form)")
+    .forEach((element) => {
+      if (element.dataset.hxBound === "true") {
+        return;
+      }
+      element.dataset.hxBound = "true";
+      const trigger = element.getAttribute("hx-trigger") || "click";
+      const method = element.hasAttribute("hx-post") ? "POST" : "GET";
+      const action =
+        element.getAttribute("hx-post") || element.getAttribute("hx-get");
+      const targetSelector = element.getAttribute("hx-target");
+      const swapMode = element.getAttribute("hx-swap") || "innerHTML";
+      const includeSelector = element.getAttribute("hx-include");
+
+      element.addEventListener(trigger, async () => {
+        let body = null;
+        if (method === "POST" && includeSelector) {
+          const source =
+            includeSelector === "closest form"
+              ? element.closest("form")
+              : document.querySelector(includeSelector);
+          if (source) {
+            body = new FormData(source);
+          }
+        }
+        try {
+          const response = await fetch(action, {
+            method,
+            body,
+            credentials: "same-origin",
+            headers: {
+              "HX-Request": "true",
+              "X-CSRF-Token": readCookie("csrf_token") || "",
+            },
+          });
+          await handleResponse(response, targetSelector, swapMode);
+        } catch (error) {
+          showNotice(error.message || "Request failed.", "error");
+        }
+      });
+    });
+
   document.querySelectorAll("[hx-get] button").forEach((button) => {
     if (button.dataset.hxBound === "true") {
       return;

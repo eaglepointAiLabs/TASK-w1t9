@@ -5,7 +5,8 @@
       "Bash(chmod +x \"c:/Users/PC/Documents/Eaglepoint/TASK-9/TablePay-Restaurant-Ordering/run_tests.sh\")",
       "Bash(grep -c \"^def test_\" unit_tests/*.py)",
       "Bash(grep -c \"^def test_\" API_tests/*.py)",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(node --check htmx-lite.js)"
     ]
   }
 }
