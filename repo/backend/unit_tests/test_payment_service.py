@@ -256,7 +256,46 @@ def test_verify_callback_rejects_reference_mismatch(app):
             assert getattr(exc, "code", "") == "reference_mismatch"
 
 
-def test_import_callback_rejects_missing_reference(app):
+def test_import_callback_rejects_payload_missing_transaction_reference(app):
+    order = _create_order(app)
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        payment_service.capture_payment(
+            {"order_id": order.id, "transaction_reference": "pay-omit-ref-1", "capture_amount": "10.25", "status": "pending"},
+            ["Finance Admin"],
+        )
+        package_without_payload_ref = {
+            "key_id": "simulator-v1",
+            "signature": "some-signature",
+            "transaction_reference": "pay-omit-ref-1",
+            "payload": {"status": "success", "occurred_at": "2026-03-28T10:00:00+00:00"},
+        }
+
+        try:
+            payment_service.import_callback(package_without_payload_ref, ["Finance Admin"])
+            assert False, "Should have raised reference_mismatch"
+        except Exception as exc:
+            assert getattr(exc, "code", "") in ("reference_mismatch", "validation_error")
+
+
+def test_verify_callback_rejects_payload_missing_transaction_reference(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        package_without_payload_ref = {
+            "key_id": "simulator-v1",
+            "signature": "some-signature",
+            "transaction_reference": "verify-omit-ref-1",
+            "payload": {"status": "success", "occurred_at": "2026-03-28T10:00:00+00:00"},
+        }
+
+        try:
+            payment_service.verify_callback_preview(package_without_payload_ref, ["Finance Admin"])
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") in ("reference_mismatch", "validation_error")
+
+
+def test_import_callback_rejects_empty_top_level_reference(app):
     with app.app_context():
         payment_service = PaymentService(PaymentRepository())
         try:

@@ -164,7 +164,7 @@ Tests produce verbose output with:
 ## Architecture Overview
 
 - **Backend**: Flask with SQLAlchemy ORM, SQLite persistence, bcrypt password hashing
-- **Frontend**: Server-side rendered Jinja2 templates with HTMX progressive enhancement
+- **Frontend**: Server-side rendered Jinja2 templates with HTMX (v1.9.12 bundled locally, no CDN) for progressive enhancement, plus an app-specific enhancement script for CSRF, toasts, nonces, and structured editors
 - **Auth**: Local username/password, cookie-based sessions, CSRF protection, account lockout (10 attempts / 15 min), 12-char minimum passwords
 - **Payments**: Offline capture, WeChat Pay JSAPI simulator, signed callback verification with rotating encrypted keys, 24-hour idempotency dedup
 - **Refunds**: Partial/multiple refunds, original-route enforcement, step-up manager confirmation for >$50 or anomaly detection (3+ refunds from same device in 30 min)

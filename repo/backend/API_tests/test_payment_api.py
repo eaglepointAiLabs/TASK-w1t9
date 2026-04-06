@@ -117,6 +117,59 @@ def test_payment_endpoints_require_authenticated_session(client):
     assert get_response.json["code"] == "authentication_required"
 
 
+def test_callback_import_rejects_payload_without_transaction_reference(app):
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-no-payload-ref")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+    finance_client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-pay-no-payload-ref",
+            "capture_amount": "10.25",
+            "status": "pending",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+
+    package_missing_payload_ref = {
+        "key_id": "simulator-v1",
+        "signature": "some-signature",
+        "transaction_reference": "api-pay-no-payload-ref",
+        "payload": {"status": "success", "occurred_at": "2026-03-28T10:00:00+00:00"},
+    }
+
+    response = finance_client.post(
+        "/api/payments/callbacks/import",
+        json=package_missing_payload_ref,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert response.status_code == 400
+    assert response.json["code"] in ("reference_mismatch", "validation_error")
+
+
+def test_callback_verify_rejects_payload_without_transaction_reference(app):
+    finance_client = app.test_client()
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+
+    package_missing_payload_ref = {
+        "key_id": "simulator-v1",
+        "signature": "some-signature",
+        "transaction_reference": "verify-no-payload-ref",
+        "payload": {"status": "success", "occurred_at": "2026-03-28T10:00:00+00:00"},
+    }
+
+    response = finance_client.post(
+        "/api/payments/callbacks/verify",
+        json=package_missing_payload_ref,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert response.status_code == 400
+    assert response.json["code"] in ("reference_mismatch", "validation_error")
+
+
 def test_callback_verify_and_import_duplicate_behavior(app):
     customer_client = app.test_client()
     finance_client = app.test_client()

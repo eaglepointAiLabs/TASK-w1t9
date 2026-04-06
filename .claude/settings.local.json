@@ -6,7 +6,9 @@
       "Bash(grep -c \"^def test_\" unit_tests/*.py)",
       "Bash(grep -c \"^def test_\" API_tests/*.py)",
       "Bash(python -c ':*)",
-      "Bash(node --check htmx-lite.js)"
+      "Bash(node --check htmx-lite.js)",
+      "WebFetch(domain:unpkg.com)",
+      "Bash(curl -sL \"https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js\" -o \"c:/Users/PC/Documents/Eaglepoint/TASK-9/TablePay-Restaurant-Ordering/repo/backend/app/static/js/htmx.min.js\")"
     ]
   }
 }

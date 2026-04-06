@@ -10,7 +10,7 @@ TablePay uses a single Flask service with a clean API boundary:
 - SQLite as the local persistence layer
 - UTC-normalized timestamps for persisted security, payment, refund, reconciliation, and ops events, with API serialization emitted as UTC `Z` timestamps
 
-The frontend is not a SPA. Pages remain server-rendered and progressively enhanced through a local helper script, so there is no mandatory internet dependency.
+The frontend is not a SPA. Pages are server-rendered and progressively enhanced with HTMX. The official HTMX library (`htmx.min.js` v1.9.12) is bundled locally in `repo/backend/app/static/js/` so it loads without any internet/CDN dependency. A companion script (`htmx-lite.js`) provides application-specific enhancement behaviors including CSRF injection, toast notifications, nonce auto-issuance, manager structured-field editors, image preview, and generic `[hx-post]`/`[hx-get]` handling for non-form elements (e.g. fieldset-level option pre-check triggers).
 The delivery keeps the source of truth in `repo/backend/app/templates` and `repo/backend/app/static`, while `repo/frontend` exists for frontend-facing docs and regression tests.
 
 ## Security

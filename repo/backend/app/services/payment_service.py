@@ -193,6 +193,12 @@ class PaymentService:
         payload = package.get("payload") or {}
         if not key_id or not signature or not isinstance(payload, dict):
             raise AppError("validation_error", "key_id, signature, and payload are required.", 400)
+        if not (payload.get("transaction_reference") or "").strip():
+            raise AppError(
+                "validation_error",
+                "payload.transaction_reference is required.",
+                400,
+            )
 
         key = self.repository.get_signing_key(key_id)
         payload_hash = self.security.payload_hash(payload)
@@ -225,7 +231,14 @@ class PaymentService:
     def _assert_reference_binding(package: dict, reference: str) -> None:
         payload = package.get("payload") or {}
         payload_reference = (payload.get("transaction_reference") or "").strip()
-        if payload_reference and payload_reference != reference:
+        if not payload_reference:
+            raise AppError(
+                "reference_mismatch",
+                "payload.transaction_reference is required and must match the package transaction_reference.",
+                400,
+                {"package_reference": reference, "payload_reference": ""},
+            )
+        if payload_reference != reference:
             raise AppError(
                 "reference_mismatch",
                 "package.transaction_reference must match payload.transaction_reference.",
