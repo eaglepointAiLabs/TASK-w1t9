@@ -24,3 +24,6 @@ fullstack/data/uploads/
 fullstack/data/backups/
 fullstack/data/restore-tests/
 /.tmp
+.claude/
+repo/.tmp/
+/README.md
