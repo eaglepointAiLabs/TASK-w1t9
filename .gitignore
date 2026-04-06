@@ -27,3 +27,6 @@ fullstack/data/restore-tests/
 .claude/
 repo/.tmp/
 /README.md
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
