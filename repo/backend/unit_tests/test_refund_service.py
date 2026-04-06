@@ -169,3 +169,124 @@ def test_device_anomaly_detection_requires_manager_approval(app):
             "device-risk",
         )
         assert risky.status == "pending_stepup"
+
+
+def test_refund_rejects_exceeding_captured_amount(app):
+    with app.app_context():
+        payment = _create_success_payment()
+        finance = AuthRepository().get_user_by_username("finance")
+        session = AuthRepository().create_session(finance.id, "refund-session-cap", payment.created_at)
+        db.session.commit()
+        service = RefundService(RefundRepository())
+
+        exceeded = False
+        try:
+            service.create_refund(
+                {"transaction_reference": payment.transaction_reference, "refund_amount": "999.99", "route": payment.channel},
+                finance,
+                ["Finance Admin"],
+                session.id,
+                _issue_nonce(session.id, "refund:create"),
+                "device-cap",
+            )
+        except Exception as exc:
+            exceeded = getattr(exc, "code", "") == "refund_cap_exceeded"
+        assert exceeded
+
+
+def test_refund_rejects_wrong_route(app):
+    with app.app_context():
+        payment = _create_success_payment()
+        finance = AuthRepository().get_user_by_username("finance")
+        session = AuthRepository().create_session(finance.id, "refund-session-route", payment.created_at)
+        db.session.commit()
+        service = RefundService(RefundRepository())
+
+        wrong_route = False
+        try:
+            service.create_refund(
+                {"transaction_reference": payment.transaction_reference, "refund_amount": "5.00", "route": "wrong_channel"},
+                finance,
+                ["Finance Admin"],
+                session.id,
+                _issue_nonce(session.id, "refund:create"),
+                "device-route",
+            )
+        except Exception as exc:
+            wrong_route = getattr(exc, "code", "") == "original_route_required"
+        assert wrong_route
+
+
+def test_refund_rejects_non_success_payment(app):
+    with app.app_context():
+        customer_id = AuthRepository().get_user_by_username("customer").id
+        dish = CatalogRepository().get_dish_by_slug("citrus-tofu-bowl")
+        order_service = OrderService(OrderRepository(), CatalogRepository())
+        order_service.add_cart_item(customer_id, {"dish_id": dish.id, "quantity": 1, "selected_options": {}})
+        order = order_service.checkout(customer_id, f"refund-pending-{dish.id[:4]}")
+        payment = PaymentService(PaymentRepository()).capture_payment(
+            {"order_id": order.id, "transaction_reference": f"refund-pending-pay-{order.id[:6]}", "capture_amount": "10.00", "status": "pending"},
+            ["Finance Admin"],
+        )
+
+        finance = AuthRepository().get_user_by_username("finance")
+        session = AuthRepository().create_session(finance.id, "refund-session-pending", payment.created_at)
+        db.session.commit()
+        service = RefundService(RefundRepository())
+
+        non_success = False
+        try:
+            service.create_refund(
+                {"transaction_reference": payment.transaction_reference, "refund_amount": "5.00", "route": payment.channel},
+                finance,
+                ["Finance Admin"],
+                session.id,
+                _issue_nonce(session.id, "refund:create"),
+                "device-pending",
+            )
+        except Exception as exc:
+            non_success = getattr(exc, "code", "") == "validation_error"
+        assert non_success
+
+
+def test_refund_rejects_nonexistent_payment(app):
+    with app.app_context():
+        finance = AuthRepository().get_user_by_username("finance")
+        session = AuthService(AuthRepository()).create_session_for_user(finance.id, 12)
+        service = RefundService(RefundRepository())
+
+        not_found = False
+        try:
+            service.create_refund(
+                {"transaction_reference": "nonexistent-ref", "refund_amount": "5.00", "route": "offline_wechat_simulator"},
+                finance,
+                ["Finance Admin"],
+                session.id,
+                _issue_nonce(session.id, "refund:create"),
+                "device-nf",
+            )
+        except Exception as exc:
+            not_found = getattr(exc, "code", "") == "not_found"
+        assert not_found
+
+
+def test_get_refund_returns_not_found(app):
+    with app.app_context():
+        service = RefundService(RefundRepository())
+        not_found = False
+        try:
+            service.get_refund("nonexistent-refund-id", ["Finance Admin"])
+        except Exception as exc:
+            not_found = getattr(exc, "code", "") == "not_found"
+        assert not_found
+
+
+def test_refund_requires_finance_admin_role(app):
+    with app.app_context():
+        service = RefundService(RefundRepository())
+        forbidden = False
+        try:
+            service.list_risk_events(["Customer"])
+        except Exception as exc:
+            forbidden = getattr(exc, "code", "") == "forbidden"
+        assert forbidden

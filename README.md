@@ -82,20 +82,29 @@ Key environment variables (set before `docker compose up`):
 
 ## Running Tests
 
-All test commands are run from the `repo/` directory.
+A unified `run_tests.sh` script is provided at the project root for one-click execution. All test suites run through `pytest` with verbose output including per-test pass/fail status and a summary count.
 
-### Full Test Suite
+### One-Click Execution (Docker)
 
 ```bash
-cd repo
-docker compose --profile tests run --rm --build tests
+./run_tests.sh
+# or explicitly:
+./run_tests.sh --docker
 ```
 
-Or use the wrapper script:
+### One-Click Execution (Local, no Docker)
+
+```bash
+./run_tests.sh --local
+```
+
+### From the repo/ Directory
 
 ```bash
 cd repo
 ./run_tests.sh
+# or directly:
+docker compose --profile tests run --rm --build tests
 ```
 
 ### Targeted Test Suites
@@ -104,21 +113,67 @@ cd repo
 cd repo
 
 # Backend unit tests
-docker compose --profile tests run --rm --build tests python -m pytest backend/unit_tests -q
+docker compose --profile tests run --rm --build tests python -m pytest backend/unit_tests -v --tb=short
 
 # Backend API integration tests
-docker compose --profile tests run --rm --build tests python -m pytest backend/API_tests -q
+docker compose --profile tests run --rm --build tests python -m pytest backend/API_tests -v --tb=short
 
 # Frontend SSR route tests
-docker compose --profile tests run --rm --build tests python -m pytest frontend/API_tests -q
+docker compose --profile tests run --rm --build tests python -m pytest frontend/API_tests -v --tb=short
 
 # Frontend unit tests
-docker compose --profile tests run --rm --build tests python -m pytest frontend/unit_tests -q
+docker compose --profile tests run --rm --build tests python -m pytest frontend/unit_tests -v --tb=short
 
 # End-to-end browser tests
 docker compose --profile e2e run --rm --build e2e
 docker compose --profile e2e rm -sf web-e2e
 ```
+
+### Test Directory Structure
+
+```
+repo/
+├── backend/
+│   ├── unit_tests/              # Backend unit tests (14 files)
+│   │   ├── test_auth_service.py         # Auth: login, lockout, session, CSRF, nonce
+│   │   ├── test_catalog_service.py      # Catalog: CRUD, options, filtering, publish
+│   │   ├── test_community_service.py    # Community: like, favorite, comment, block, throttle
+│   │   ├── test_config.py               # Config: production secret validation
+│   │   ├── test_error_sanitization.py   # Error: detail redaction, size limits
+│   │   ├── test_moderation_service.py   # Moderation: queue, decisions, role changes
+│   │   ├── test_ops_service.py          # Ops: cache, rate limit, circuit breaker, backup
+│   │   ├── test_order_service.py        # Orders: cart, checkout, inventory, concurrency
+│   │   ├── test_password_policy.py      # Password: complexity validation
+│   │   ├── test_payment_service.py      # Payments: capture, signatures, dedup, simulator
+│   │   ├── test_rbac.py                 # RBAC: role matching, forbidden
+│   │   ├── test_reconciliation_service.py # Reconciliation: CSV import, variances
+│   │   ├── test_refund_service.py       # Refunds: partial, step-up, risk, caps, routes
+│   │   └── test_time_utils.py           # Time: UTC normalization, serialization
+│   ├── API_tests/               # Backend API integration tests (10 files)
+│   │   ├── test_auth_api.py             # Auth endpoints: login, register, CSRF, lockout
+│   │   ├── test_catalog_api.py          # Catalog: dishes, images, pagination, publish
+│   │   ├── test_community_api.py        # Community: actions, targets, blocks, pagination
+│   │   ├── test_error_contract_api.py   # Error contract: redaction in responses
+│   │   ├── test_moderation_api.py       # Moderation: queue, decisions, role changes
+│   │   ├── test_ops_api.py              # Ops: jobs, backup, restore, pagination
+│   │   ├── test_order_api.py            # Orders: cart, checkout, isolation, pagination
+│   │   ├── test_payment_api.py          # Payments: capture, callbacks, simulator
+│   │   ├── test_reconciliation_api.py   # Reconciliation: import, resolution, pagination
+│   │   └── test_refund_api.py           # Refunds: step-up, nonce replay, pagination
+│   └── conftest.py              # Pytest fixtures (app, client, seed data)
+├── frontend/
+│   ├── API_tests/               # Frontend SSR route tests
+│   ├── unit_tests/              # Frontend template component tests
+│   └── e2e/                     # End-to-end browser tests
+└── run_tests.sh                 # Docker test runner
+```
+
+### Test Output
+
+Tests produce verbose output with:
+- Per-test execution status (PASSED / FAILED / ERROR)
+- Failure reason and short traceback for failed tests
+- Summary count: total tests, passed, failed, errors
 
 ## Architecture Overview
 

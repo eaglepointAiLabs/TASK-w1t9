@@ -151,3 +151,88 @@ def test_jsapi_simulator_generates_and_imports_callback(app):
         refreshed = PaymentRepository().get_transaction(payment.id)
         assert refreshed.status == "success"
         assert len(refreshed.callbacks) >= 1
+
+
+def test_capture_payment_rejects_nonexistent_order(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        try:
+            payment_service.capture_payment(
+                {"order_id": "nonexistent-order", "transaction_reference": "test-1", "capture_amount": "10.00", "status": "pending"},
+                ["Finance Admin"],
+            )
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "not_found"
+
+
+def test_capture_payment_requires_finance_admin_role(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        try:
+            payment_service.capture_payment(
+                {"order_id": "any", "transaction_reference": "test-1", "capture_amount": "10.00", "status": "pending"},
+                ["Customer"],
+            )
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "forbidden"
+
+
+def test_get_payment_returns_not_found_for_invalid_id(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        try:
+            payment_service.get_payment("nonexistent-payment-id", ["Finance Admin"])
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "not_found"
+
+
+def test_jsapi_simulator_rejects_invalid_status(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        try:
+            payment_service.simulate_jsapi_callback(
+                {"transaction_reference": "test-ref", "status": "invalid_status", "key_id": "simulator-v1"},
+                ["Finance Admin"],
+            )
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "validation_error"
+
+
+def test_jsapi_simulator_rejects_missing_reference(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        try:
+            payment_service.simulate_jsapi_callback(
+                {"transaction_reference": "", "status": "success", "key_id": "simulator-v1"},
+                ["Finance Admin"],
+            )
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "validation_error"
+
+
+def test_verify_callback_rejects_missing_fields(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        try:
+            payment_service.verify_callback_preview({"key_id": "", "signature": "", "payload": {}}, ["Finance Admin"])
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "validation_error"
+
+
+def test_import_callback_rejects_missing_reference(app):
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        try:
+            payment_service.import_callback(
+                {"key_id": "simulator-v1", "signature": "sig", "payload": {"occurred_at": "2026-03-28T10:00:00+00:00"}, "transaction_reference": ""},
+                ["Finance Admin"],
+            )
+            assert False, "Should have raised"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "validation_error"

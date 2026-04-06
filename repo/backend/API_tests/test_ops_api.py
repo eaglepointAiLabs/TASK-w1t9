@@ -15,6 +15,28 @@ def login(client, username, password):
     return response.headers.get("X-CSRF-Token", csrf_token)
 
 
+def test_ops_endpoints_require_authenticated_session(client):
+    response = client.get("/api/admin/ops/jobs", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+    response = client.get("/api/admin/ops/rate-limits", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+    response = client.get("/api/admin/ops/circuit-breakers", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
+def test_ops_endpoints_reject_non_admin_roles(client):
+    csrf_token = login(client, "customer", "Customer#1234")
+
+    response = client.get("/api/admin/ops/jobs", headers={"Accept": "application/json"})
+    assert response.status_code == 403
+    assert response.json["code"] == "forbidden"
+
+
 def test_ops_endpoints_and_backup_restore(client, app, tmp_path):
     csrf_token = login(client, "finance", "Finance#12345")
     with app.app_context():

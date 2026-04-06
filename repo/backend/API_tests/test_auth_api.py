@@ -153,3 +153,33 @@ def test_home_requires_session(client):
     response = client.get("/")
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/login")
+
+
+def test_me_requires_authenticated_session(client):
+    response = client.get("/auth/me", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
+def test_register_rejects_mismatched_passwords(client):
+    csrf_token = fetch_csrf(client, "/register")
+    response = client.post(
+        "/auth/register",
+        json={
+            "username": "mismatchuser",
+            "password": "StrongPass#1234",
+            "confirm_password": "DifferentPass#1234",
+        },
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert response.status_code == 400
+
+
+def test_nonce_requires_authenticated_session(client):
+    csrf_token = fetch_csrf(client)
+    response = client.post(
+        "/api/auth/nonces",
+        json={"purpose": "refund:create"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert response.status_code == 401

@@ -91,6 +91,40 @@ def test_role_change_nonce_requirement(client):
     assert granted.status_code == 200
 
 
+def test_moderation_queue_requires_authenticated_session(client):
+    response = client.get("/api/moderation/queue", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
+def test_moderation_decision_requires_authenticated_session(client):
+    csrf_token = fetch_csrf(client)
+    response = client.post(
+        "/api/moderation/items/some-id/decision",
+        json={"outcome": "remove", "reason_code": "abuse_content", "operator_notes": "test"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
+def test_moderation_history_requires_authenticated_session(client):
+    response = client.get("/api/moderation/items/some-id/history", headers={"Accept": "application/json"})
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
+def test_role_change_requires_authenticated_session(client):
+    csrf_token = fetch_csrf(client)
+    response = client.post(
+        "/api/admin/roles/change",
+        json={"target_username": "customer", "role_name": "Moderator", "action": "grant", "nonce": "n"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert response.status_code == 401
+    assert response.json["code"] == "authentication_required"
+
+
 def test_moderator_cannot_change_roles(client):
     moderator_csrf = login(client, "moderator", "Moderator#123")
     denied = client.post(
