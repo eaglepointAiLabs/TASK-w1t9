@@ -164,7 +164,52 @@ def test_unblock_nonexistent_block_returns_404(app):
         assert exc.value.code == "not_found"
 
 
-def test_block_behavior_and_report_validation(app):
+def test_block_prevents_like_on_blocked_user_post(app):
+    with app.app_context():
+        repo = CommunityRepository()
+        service = CommunityService(repo)
+        customer = AuthRepository().get_user_by_username("customer")
+        moderator = AuthRepository().get_user_by_username("moderator")
+        post = repo.list_posts()[0]
+        # customer blocks the post author (moderator is not the author here, use
+        # whoever owns the seeded post — block customer → moderator direction so
+        # that moderator cannot like customer-authored content)
+        service.block_user(moderator.id, customer.id)
+
+        with pytest.raises(AppError) as exc:
+            service.toggle_like(moderator.id, {"target_type": "post", "target_id": post.id})
+        assert exc.value.code == "blocked_interaction"
+
+
+def test_block_prevents_favorite_on_blocked_user_post(app):
+    with app.app_context():
+        repo = CommunityRepository()
+        service = CommunityService(repo)
+        customer = AuthRepository().get_user_by_username("customer")
+        moderator = AuthRepository().get_user_by_username("moderator")
+        post = repo.list_posts()[0]
+        service.block_user(moderator.id, customer.id)
+
+        with pytest.raises(AppError) as exc:
+            service.toggle_favorite(moderator.id, {"target_type": "post", "target_id": post.id})
+        assert exc.value.code == "blocked_interaction"
+
+
+def test_block_prevents_report_on_blocked_user_post(app):
+    with app.app_context():
+        repo = CommunityRepository()
+        service = CommunityService(repo)
+        customer = AuthRepository().get_user_by_username("customer")
+        moderator = AuthRepository().get_user_by_username("moderator")
+        post = repo.list_posts()[0]
+        service.block_user(moderator.id, customer.id)
+
+        with pytest.raises(AppError) as exc:
+            service.create_report(
+                moderator,
+                {"target_type": "post", "target_id": post.id, "reason_code": "spam", "details": "test"},
+            )
+        assert exc.value.code == "blocked_interaction"
     with app.app_context():
         repo = CommunityRepository()
         service = CommunityService(repo)

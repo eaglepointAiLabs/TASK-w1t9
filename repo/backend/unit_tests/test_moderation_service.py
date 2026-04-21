@@ -1,9 +1,40 @@
+from unittest.mock import patch
+
+from app.extensions import db
 from app.repositories.auth_repository import AuthRepository
 from app.repositories.community_repository import CommunityRepository
 from app.repositories.moderation_repository import ModerationRepository
 from app.services.community_service import CommunityService
 from app.services.errors import AppError
 from app.services.moderation_service import ModerationService
+
+
+def test_report_creation_is_atomic_with_queue_item(app):
+    """
+    If ensure_queue_item_for_report raises after the report flush, the report
+    must not be committed — both rows land in the same transaction or neither.
+    """
+    with app.app_context():
+        customer = AuthRepository().get_user_by_username("customer")
+        post = CommunityRepository().list_posts()[0]
+
+        before = db.session.scalar(db.text("SELECT COUNT(*) FROM reports"))
+
+        with patch.object(
+            ModerationService,
+            "ensure_queue_item_for_report",
+            side_effect=RuntimeError("simulated queue insertion failure"),
+        ):
+            try:
+                CommunityService(CommunityRepository()).create_report(
+                    customer,
+                    {"target_type": "post", "target_id": post.id, "reason_code": "spam", "details": "test"},
+                )
+            except RuntimeError:
+                db.session.rollback()
+
+        after = db.session.scalar(db.text("SELECT COUNT(*) FROM reports"))
+        assert after == before, "Report must not be persisted when queue-item insertion fails"
 
 
 def test_report_creates_queue_item_and_reason_required(app):

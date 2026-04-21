@@ -38,7 +38,8 @@ class ModerationService:
             latest_reason_code=report.reason_code,
             notes=report.details or "",
         )
-        db.session.commit()
+        # Flush only — the caller (create_report) owns the transaction boundary so
+        # the report row and this queue item commit atomically or not at all.
 
     def list_queue(self, current_roles: list[str], status: str | None = None):
         self.rbac.require_roles(current_roles, ["Moderator"])

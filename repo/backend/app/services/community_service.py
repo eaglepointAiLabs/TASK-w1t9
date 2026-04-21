@@ -25,6 +25,7 @@ class CommunityService:
         target_id = (payload.get("target_id") or "").strip()
         self._validate_target(target_type, target_id)
         self._enforce_throttle(user_id, "like_toggle", target_type, target_id)
+        self._enforce_block_rules(user_id, target_type, target_id)
         like = self.repository.get_like(user_id, target_type, target_id)
         active = False
         if like is None:
@@ -40,6 +41,7 @@ class CommunityService:
         target_id = (payload.get("target_id") or "").strip()
         self._validate_target(target_type, target_id)
         self._enforce_throttle(user_id, "favorite_toggle", target_type, target_id)
+        self._enforce_block_rules(user_id, target_type, target_id)
         favorite = self.repository.get_favorite(user_id, target_type, target_id)
         active = False
         if favorite is None:
@@ -74,6 +76,7 @@ class CommunityService:
         if reason_code not in {"abuse", "spam", "harassment", "other"}:
             raise AppError("validation_error", "Invalid report reason code.", 400)
         self._enforce_throttle(user.id, "report", target_type, target_id)
+        self._enforce_block_rules(user.id, target_type, target_id)
         report = self.repository.create_report(
             reporter_user_id=user.id,
             target_type=target_type,
@@ -82,8 +85,11 @@ class CommunityService:
             details=details,
             status="open",
         )
-        db.session.commit()
+        # Flush to assign report.id without committing; both the report and the
+        # queue item must land in the same transaction.
+        db.session.flush()
         ModerationService(ModerationRepository()).ensure_queue_item_for_report(report)
+        db.session.commit()
         return report
 
     def block_user(self, user_id: str, blocked_user_id: str):
