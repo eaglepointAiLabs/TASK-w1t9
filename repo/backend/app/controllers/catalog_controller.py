@@ -6,6 +6,7 @@ import json
 from flask import current_app, g, jsonify, render_template, request, send_from_directory
 
 from app.controllers.pagination import paginate_collection, parse_pagination_args
+from app.controllers.payload_helpers import require_dict_payload
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.catalog_repository import CatalogRepository
 from app.services.catalog_service import CatalogService
@@ -163,7 +164,7 @@ def get_dish(dish_id: str):
 
 
 def create_dish():
-    payload = request.get_json(silent=True) or request.form.to_dict(flat=True)
+    payload = _resolve_catalog_payload()
     payload = _inflate_payload(payload)
     dish = CatalogService(CatalogRepository()).create_dish(payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
@@ -177,7 +178,7 @@ def create_dish():
 
 
 def update_dish(dish_id: str):
-    payload = request.get_json(silent=True) or request.form.to_dict(flat=True)
+    payload = _resolve_catalog_payload()
     payload = _inflate_payload(payload)
     dish = CatalogService(CatalogRepository()).update_dish(dish_id, payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
@@ -188,7 +189,10 @@ def update_dish(dish_id: str):
 
 
 def publish_dish(dish_id: str):
-    payload = request.get_json(silent=True) or request.form
+    if request.is_json:
+        payload = require_dict_payload()
+    else:
+        payload = request.form
     publish = str(payload.get("publish", "true")).lower() == "true"
     dish = CatalogService(CatalogRepository()).publish_dish(dish_id, publish, g.current_roles)
     if request.headers.get("HX-Request") == "true":
@@ -203,7 +207,7 @@ def bulk_update_dishes():
     if g.current_user is None:
         raise AppError("authentication_required", "Authentication is required.", 401)
     if request.is_json:
-        payload = request.get_json(silent=True) or {}
+        payload = require_dict_payload()
         dish_ids = payload.get("dish_ids") or []
     else:
         payload = request.form
@@ -213,6 +217,8 @@ def bulk_update_dishes():
 
     if isinstance(dish_ids, str):
         dish_ids = [item.strip() for item in dish_ids.split(",") if item.strip()]
+    if not isinstance(dish_ids, list):
+        raise AppError("validation_error", "dish_ids must be a string or an array.", 400)
     publish = _coerce_optional_bool(payload.get("publish"))
     archived = _coerce_optional_bool(payload.get("archived"))
 
@@ -264,12 +270,23 @@ def upload_dish_image(dish_id: str):
 
 
 def validate_dish_selection(dish_id: str):
-    payload = request.get_json(silent=True) or request.form
+    if request.is_json:
+        payload = require_dict_payload()
+    else:
+        payload = request.form
     grouped = defaultdict(list)
     for key in payload:
         if key.startswith("option_"):
-            grouped[key.removeprefix("option_")].extend(payload.getlist(key))
-    result = CatalogService(CatalogRepository()).validate_required_options(dish_id, grouped)
+            value = payload.get(key)
+            if isinstance(payload, dict) and not hasattr(payload, "getlist"):
+                # JSON body: payload[key] can be scalar or list.
+                if isinstance(value, list):
+                    grouped[key.removeprefix("option_")].extend(value)
+                else:
+                    grouped[key.removeprefix("option_")].append(value)
+            else:
+                grouped[key.removeprefix("option_")].extend(payload.getlist(key))
+    result = CatalogService(CatalogRepository()).validate_required_options(dish_id, grouped, g.current_roles)
     if request.headers.get("HX-Request") == "true":
         dish = CatalogRepository().get_dish(dish_id)
         return attach_feedback(render_template("partials/selection_status.html", dish=dish, selection=result), "Selections look good.")
@@ -284,6 +301,13 @@ def serve_upload(relative_path: str):
     return send_from_directory(current_app.config["UPLOAD_DIR"], relative_path)
 
 
+def _resolve_catalog_payload() -> dict:
+    """Return a mutable dict payload, rejecting non-object JSON bodies."""
+    if request.is_json:
+        return dict(require_dict_payload())
+    return request.form.to_dict(flat=True)
+
+
 def _inflate_payload(payload: dict) -> dict:
     if "tags" in payload and isinstance(payload["tags"], str):
         payload["tags"] = [tag.strip() for tag in payload["tags"].split(",") if tag.strip()]
@@ -291,6 +315,12 @@ def _inflate_payload(payload: dict) -> dict:
         payload["availability_windows"] = _load_json_field(payload["availability_windows"], "availability_windows")
     if "options" in payload and isinstance(payload["options"], str):
         payload["options"] = _load_json_field(payload["options"], "options")
+    # After coercion, structured collections must actually be the right
+    # shape. This keeps the service from dereferencing a scalar like
+    # "options": 42 that a JSON client could ship.
+    for field in ("tags", "availability_windows", "options"):
+        if field in payload and payload[field] is not None and not isinstance(payload[field], list):
+            raise AppError("validation_error", f"{field} must be an array.", 400)
     return payload
 
 

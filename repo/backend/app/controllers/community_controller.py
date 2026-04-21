@@ -3,6 +3,7 @@ from __future__ import annotations
 from flask import g, jsonify, render_template, request
 
 from app.controllers.pagination import paginate_collection, parse_pagination_args
+from app.controllers.payload_helpers import require_dict_payload
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.community_repository import CommunityRepository
 from app.services.errors import AppError
@@ -76,7 +77,7 @@ def list_posts():
 def toggle_like():
     if g.current_user is None:
         raise AppError("authentication_required", "Authentication is required.", 401)
-    payload = request.get_json(silent=True) or request.form
+    payload = _community_payload()
     result = _service().toggle_like(g.current_user.id, payload)
     if request.headers.get("HX-Request") == "true" and (payload.get("target_type") or "").strip() == "post":
         return attach_feedback(_render_post_card((payload.get("target_id") or "").strip()), "Like updated.")
@@ -86,7 +87,7 @@ def toggle_like():
 def toggle_favorite():
     if g.current_user is None:
         raise AppError("authentication_required", "Authentication is required.", 401)
-    payload = request.get_json(silent=True) or request.form
+    payload = _community_payload()
     result = _service().toggle_favorite(g.current_user.id, payload)
     if request.headers.get("HX-Request") == "true" and (payload.get("target_type") or "").strip() == "post":
         return attach_feedback(_render_post_card((payload.get("target_id") or "").strip()), "Favorite updated.")
@@ -96,7 +97,7 @@ def toggle_favorite():
 def create_comment():
     if g.current_user is None:
         raise AppError("authentication_required", "Authentication is required.", 401)
-    payload = request.get_json(silent=True) or request.form
+    payload = _community_payload()
     comment = _service().create_comment(g.current_user, payload)
     if request.headers.get("HX-Request") == "true" and (payload.get("target_type") or "").strip() == "post":
         return attach_feedback((_render_post_card((payload.get("target_id") or "").strip()), 201), "Comment posted.")
@@ -112,7 +113,7 @@ def create_comment():
 def create_report():
     if g.current_user is None:
         raise AppError("authentication_required", "Authentication is required.", 401)
-    payload = request.get_json(silent=True) or request.form
+    payload = _community_payload()
     report = _service().create_report(g.current_user, payload)
     if request.headers.get("HX-Request") == "true" and (payload.get("target_type") or "").strip() == "post":
         return attach_feedback((_render_post_card((payload.get("target_id") or "").strip()), 201), "Report submitted.", tone="warning")
@@ -122,7 +123,7 @@ def create_report():
 def block_user():
     if g.current_user is None:
         raise AppError("authentication_required", "Authentication is required.", 401)
-    payload = request.get_json(silent=True) or request.form
+    payload = _community_payload()
     result = _service().block_user(g.current_user.id, (payload.get("blocked_user_id") or "").strip())
     post_id = (payload.get("post_id") or "").strip()
     if request.headers.get("HX-Request") == "true" and post_id:
@@ -134,7 +135,24 @@ def unblock_user(blocked_user_id: str):
     if g.current_user is None:
         raise AppError("authentication_required", "Authentication is required.", 401)
     result = _service().unblock_user(g.current_user.id, blocked_user_id)
-    post_id = (request.get_json(silent=True) or request.form).get("post_id", "").strip() if request.method == "DELETE" else ""
+    post_id = ""
+    if request.method == "DELETE":
+        unblock_payload = _community_payload(optional=True)
+        post_id = (unblock_payload.get("post_id") or "").strip()
     if request.headers.get("HX-Request") == "true" and post_id:
         return attach_feedback(_render_post_card(post_id), "User unblocked.")
     return jsonify({"code": "ok", "message": "User unblocked.", "data": result})
+
+
+def _community_payload(optional: bool = False):
+    """
+    Return the request body as a Mapping. Rejects non-object JSON bodies
+    (arrays, strings, null) with AppError(400) so services never see a
+    wrong shape. Pass optional=True when an empty body is acceptable
+    (e.g. DELETE with no body).
+    """
+    if request.is_json:
+        return require_dict_payload()
+    if optional and not request.form:
+        return {}
+    return request.form

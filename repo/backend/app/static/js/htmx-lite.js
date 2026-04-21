@@ -123,7 +123,7 @@ async function handleResponse(
   }
 
   const target =
-    targetSelector === "closest article"
+    targetSelector === "closest article" || targetSelector === "this"
       ? fallbackTarget
       : document.querySelector(targetSelector);
   const payload = await response.text();
@@ -292,35 +292,20 @@ function wireForms() {
               "X-CSRF-Token": readCookie("csrf_token") || "",
             },
           });
-          await handleResponse(response, targetSelector, swapMode);
+          // Resolve relative hx-target tokens against the bound element so the
+          // container handler can swap correctly without a duplicate nested
+          // binding. "this" maps to the element itself; "closest article"
+          // walks up to the enclosing article.
+          const fallbackTarget =
+            targetSelector === "this"
+              ? element
+              : element.closest("article");
+          await handleResponse(response, targetSelector, swapMode, fallbackTarget);
         } catch (error) {
           showNotice(error.message || "Request failed.", "error");
         }
       });
     });
-
-  document.querySelectorAll("[hx-get] button").forEach((button) => {
-    if (button.dataset.hxBound === "true") {
-      return;
-    }
-    button.dataset.hxBound = "true";
-    button.addEventListener("click", async (event) => {
-      const container = button.closest("[hx-get]");
-      const response = await fetch(container.getAttribute("hx-get"), {
-        method: "GET",
-        credentials: "same-origin",
-        headers: { "HX-Request": "true" },
-      });
-      const payload = await response.text();
-      if (response.ok) {
-        button.closest("article").outerHTML = payload;
-        applyCsrfToForms();
-        wireForms();
-        wirePreview();
-        wireManagerEditor();
-      }
-    });
-  });
 }
 
 function wirePreview() {

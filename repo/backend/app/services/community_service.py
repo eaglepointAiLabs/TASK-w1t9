@@ -77,19 +77,26 @@ class CommunityService:
             raise AppError("validation_error", "Invalid report reason code.", 400)
         self._enforce_throttle(user.id, "report", target_type, target_id)
         self._enforce_block_rules(user.id, target_type, target_id)
-        report = self.repository.create_report(
-            reporter_user_id=user.id,
-            target_type=target_type,
-            target_id=target_id,
-            reason_code=reason_code,
-            details=details,
-            status="open",
-        )
-        # Flush to assign report.id without committing; both the report and the
-        # queue item must land in the same transaction.
-        db.session.flush()
-        ModerationService(ModerationRepository()).ensure_queue_item_for_report(report)
-        db.session.commit()
+        # The report row and its moderation queue item must land in the same
+        # transaction. Any failure between flushing the report and committing
+        # the queue item rolls back the pending report so it is never
+        # half-persisted. ensure_queue_item_for_report is idempotent, so a
+        # retry never duplicates the queue item.
+        try:
+            report = self.repository.create_report(
+                reporter_user_id=user.id,
+                target_type=target_type,
+                target_id=target_id,
+                reason_code=reason_code,
+                details=details,
+                status="open",
+            )
+            db.session.flush()
+            ModerationService(ModerationRepository()).ensure_queue_item_for_report(report)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
         return report
 
     def block_user(self, user_id: str, blocked_user_id: str):

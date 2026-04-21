@@ -306,3 +306,40 @@ def test_import_callback_rejects_empty_top_level_reference(app):
             assert False, "Should have raised"
         except Exception as exc:
             assert getattr(exc, "code", "") == "validation_error"
+
+
+def test_import_callback_rejects_invalid_payload_status(app):
+    """
+    A signed callback whose payload.status is outside the allowed set
+    {pending, success, failed} must be rejected before mutating the
+    transaction row.
+    """
+    order = _create_order(app)
+    with app.app_context():
+        payment_service = PaymentService(PaymentRepository())
+        payment = payment_service.capture_payment(
+            {
+                "order_id": order.id,
+                "transaction_reference": "pay-bad-status-1",
+                "capture_amount": "10.25",
+                "status": "pending",
+            },
+            ["Finance Admin"],
+        )
+
+        package = _package(
+            "simulator-secret-v1",
+            "simulator-v1",
+            payment.transaction_reference,
+            "2026-03-28T10:00:00+00:00",
+            status="refunded",
+        )
+
+        try:
+            payment_service.import_callback(package, ["Finance Admin"])
+            assert False, "Should have raised validation_error"
+        except Exception as exc:
+            assert getattr(exc, "code", "") == "validation_error"
+
+        refreshed = PaymentRepository().get_transaction(payment.id)
+        assert refreshed.status == "pending", "Transaction status must not be mutated by a rejected callback"

@@ -6,6 +6,7 @@ from uuid import uuid4
 from flask import g, jsonify, render_template, request
 
 from app.controllers.pagination import paginate_collection, parse_pagination_args
+from app.controllers.payload_helpers import require_dict_field, require_dict_payload
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.catalog_repository import CatalogRepository
 from app.repositories.order_repository import OrderRepository
@@ -85,7 +86,7 @@ def get_cart():
 
 
 def add_cart_item():
-    payload = request.get_json(silent=True) or _inflate_payload(request.form)
+    payload = _resolve_cart_payload()
     item, cart = _service().add_cart_item(g.current_user.id, payload)
     if request.headers.get("HX-Request") == "true":
         return attach_feedback(
@@ -96,7 +97,7 @@ def add_cart_item():
 
 
 def update_cart_item(item_id: str):
-    payload = request.get_json(silent=True) or _inflate_payload(request.form)
+    payload = _resolve_cart_payload()
     item, cart = _service().update_cart_item(g.current_user.id, item_id, payload)
     if request.headers.get("HX-Request") == "true":
         return attach_feedback(
@@ -117,7 +118,10 @@ def delete_cart_item(item_id: str):
 
 
 def checkout():
-    payload = request.get_json(silent=True) or request.form
+    if request.is_json:
+        payload = require_dict_payload()
+    else:
+        payload = request.form
     order = _service().checkout(g.current_user.id, payload.get("checkout_key"))
     if request.headers.get("HX-Request") == "true":
         return attach_feedback(
@@ -146,6 +150,24 @@ def get_order(order_id: str):
     if request.headers.get("HX-Request") == "true":
         return render_template("orders/confirmation.html", order=order, order_view=_serialize_order(order))
     return jsonify({"code": "ok", "message": "Order fetched.", "data": _serialize_order(order)})
+
+
+def _resolve_cart_payload() -> dict:
+    """
+    Accept either a JSON object or a form body and return a dict. Reject
+    JSON arrays / strings / null up front so services never see a
+    wrong-shaped payload, and confirm nested selected_options is itself
+    an object when present.
+    """
+    if request.is_json:
+        payload = dict(require_dict_payload())
+    else:
+        payload = _inflate_payload(request.form)
+    if "selected_options" in payload and payload["selected_options"] is not None:
+        # _inflate_payload coerces form-encoded selected_options into a dict;
+        # for JSON bodies we must explicitly reject non-object shapes.
+        require_dict_field(payload, "selected_options", label="selected_options")
+    return payload
 
 
 def _inflate_payload(payload):

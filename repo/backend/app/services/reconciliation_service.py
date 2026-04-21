@@ -17,6 +17,7 @@ from app.services.time_utils import utc_now_naive
 logger = structlog.get_logger(__name__)
 
 REQUIRED_COLUMNS = {"transaction_reference", "amount", "currency", "status"}
+ALLOWED_RESOLUTION_ACTIONS = {"resolve", "reopen"}
 
 
 class ReconciliationService:
@@ -189,10 +190,17 @@ class ReconciliationService:
         current_roles: list[str],
     ):
         self.rbac.require_roles(current_roles, ["Finance Admin"])
+        if action_type not in ALLOWED_RESOLUTION_ACTIONS:
+            raise AppError(
+                "validation_error",
+                "action_type must be one of: resolve, reopen.",
+                400,
+                {"allowed": sorted(ALLOWED_RESOLUTION_ACTIONS), "received": action_type},
+            )
         exception = self.repository.get_exception(exception_id)
         if exception is None:
             raise AppError("not_found", "Reconciliation exception not found.", 404)
-        if exception.status == "resolved":
+        if exception.status == "resolved" and action_type == "resolve":
             raise AppError("validation_error", "Exception is already resolved.", 400)
 
         from_status = exception.status

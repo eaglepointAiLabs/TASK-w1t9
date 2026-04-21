@@ -29,6 +29,41 @@ class OpsRepository:
         stmt = select(JobQueue).where(JobQueue.status == "queued", JobQueue.available_at <= now).order_by(JobQueue.created_at.asc())
         return db.session.scalar(stmt)
 
+    def claim_next_available_job(self, now: datetime) -> JobQueue | None:
+        """
+        Atomically claim the oldest queued job whose availability has arrived.
+
+        The UPDATE ... WHERE id = (SELECT ... LIMIT 1) RETURNING pattern is a
+        single SQL statement. SQLite serializes writes behind its exclusive
+        write lock, so two workers issuing this concurrently cannot both see
+        the row as 'queued' — the second worker's subquery evaluates after
+        the first worker's UPDATE commits, and the row's new state is
+        'running' so it is no longer a candidate.
+        """
+        claimed_id = db.session.execute(
+            db.text(
+                """
+                UPDATE job_queue
+                SET status = 'running',
+                    attempts = attempts + 1,
+                    updated_at = :now
+                WHERE id = (
+                    SELECT id FROM job_queue
+                    WHERE status = 'queued'
+                      AND available_at <= :now
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                )
+                RETURNING id
+                """
+            ),
+            {"now": now},
+        ).scalar()
+        db.session.commit()
+        if claimed_id is None:
+            return None
+        return db.session.scalar(select(JobQueue).where(JobQueue.id == claimed_id))
+
     def get_rate_bucket(self, bucket_key: str) -> RateLimitBucket | None:
         stmt = select(RateLimitBucket).where(RateLimitBucket.bucket_key == bucket_key)
         return db.session.scalar(stmt)

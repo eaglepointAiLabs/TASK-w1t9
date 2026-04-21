@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 from secrets import token_urlsafe
@@ -19,6 +20,33 @@ from app.services.ops_service import OpsService
 
 
 logger = structlog.get_logger(__name__)
+
+
+def _rate_limit_actor_key(current_user) -> str:
+    """
+    Build a stable rate-limit identity.
+
+    Authenticated users are bucketed by user id. For anonymous callers, we
+    hash a server-observed fingerprint (remote IP + User-Agent) instead of
+    trusting the client_id cookie alone. Cookie rotation — whether benign
+    (a browser wiping cookies) or adversarial (a client rotating cookies to
+    evade the bucket) — does not change the fingerprint, so the same
+    underlying caller stays in the same bucket. The client_id still
+    contributes an extra component so two users behind the same NAT with
+    identical User-Agents do not collide as long as either preserves its
+    cookie.
+    """
+    if current_user is not None and getattr(current_user, "id", None):
+        return f"user:{current_user.id}"
+    remote_addr = request.remote_addr or "unknown"
+    # Use the raw User-Agent header rather than Werkzeug's parsed UserAgent
+    # object — the parsed view drops unknown tokens to None, which would
+    # collapse distinct callers (e.g. anything that isn't a recognized
+    # browser) into the same fingerprint.
+    user_agent = request.headers.get("User-Agent", "")
+    fingerprint_source = f"{remote_addr}|{user_agent}".encode("utf-8")
+    fingerprint = hashlib.sha256(fingerprint_source).hexdigest()[:16]
+    return f"anon:{fingerprint}"
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -74,7 +102,7 @@ def create_app(config_name: str | None = None) -> Flask:
                 ops_service.run_maintenance_tick()
             except Exception as exc:  # pragma: no cover - best effort maintenance
                 logger.warning("ops.maintenance_tick_failed", error=str(exc))
-        actor_key = getattr(current_user, "id", None) or g.client_id
+        actor_key = _rate_limit_actor_key(current_user)
         ops_service.enforce_rate_limit(actor_key)
         ops_service.before_endpoint(request.path)
 

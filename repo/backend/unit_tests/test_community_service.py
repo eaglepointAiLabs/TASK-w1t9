@@ -210,6 +210,9 @@ def test_block_prevents_report_on_blocked_user_post(app):
                 {"target_type": "post", "target_id": post.id, "reason_code": "spam", "details": "test"},
             )
         assert exc.value.code == "blocked_interaction"
+
+
+def test_block_prevents_comment_on_blocked_user_post(app):
     with app.app_context():
         repo = CommunityRepository()
         service = CommunityService(repo)
@@ -218,12 +221,12 @@ def test_block_prevents_report_on_blocked_user_post(app):
         post = repo.list_posts()[0]
         service.block_user(customer.id, moderator.id)
 
-        blocked = False
-        try:
-            service.create_comment(moderator, {"target_type": "post", "target_id": post.id, "body": "Hello there"})
-        except Exception as exc:
-            blocked = getattr(exc, "code", "") == "blocked_interaction"
-        assert blocked
+        with pytest.raises(AppError) as exc:
+            service.create_comment(
+                moderator,
+                {"target_type": "post", "target_id": post.id, "body": "Hello there"},
+            )
+        assert exc.value.code == "blocked_interaction"
 
 
 def test_throttle_and_cooldown_boundaries(app):

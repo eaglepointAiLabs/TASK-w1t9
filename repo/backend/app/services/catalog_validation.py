@@ -10,6 +10,13 @@ from app.services.time_utils import parse_iso_datetime_as_utc_naive
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 
+# Magic-byte signatures used to verify the declared MIME type matches the
+# actual file content. Spoofed Content-Type headers must not pass validation.
+_IMAGE_MAGIC_PREFIXES = {
+    "image/jpeg": (b"\xff\xd8\xff",),
+    "image/png": (b"\x89PNG\r\n\x1a\n",),
+}
+
 
 def parse_price(value: str | int | float | Decimal | None, field_name: str) -> Decimal:
     try:
@@ -102,7 +109,7 @@ def validate_dish_payload(payload: dict) -> None:
             parse_price(value.get("price_delta", 0), "price_delta")
 
 
-def validate_image_upload(content_type: str | None, size_bytes: int) -> None:
+def validate_image_upload(content_type: str | None, content: bytes) -> None:
     if content_type not in ALLOWED_IMAGE_TYPES:
         raise AppError(
             "invalid_image_type",
@@ -110,10 +117,22 @@ def validate_image_upload(content_type: str | None, size_bytes: int) -> None:
             400,
             {"allowed_types": sorted(ALLOWED_IMAGE_TYPES)},
         )
+    size_bytes = len(content)
     if size_bytes > MAX_IMAGE_BYTES:
         raise AppError(
             "invalid_image_size",
             "Image must be 2 MB or smaller.",
             400,
             {"max_bytes": MAX_IMAGE_BYTES, "received_bytes": size_bytes},
+        )
+    # Trust the bytes, not the Content-Type header. A request can claim
+    # image/jpeg while shipping arbitrary content; the magic-byte prefix is
+    # what the decoder will ultimately see.
+    prefixes = _IMAGE_MAGIC_PREFIXES.get(content_type, ())
+    if not any(content.startswith(prefix) for prefix in prefixes):
+        raise AppError(
+            "invalid_image_content",
+            "Uploaded file content does not match the declared image type.",
+            400,
+            {"declared_content_type": content_type},
         )

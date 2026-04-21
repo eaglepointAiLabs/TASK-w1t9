@@ -12,7 +12,9 @@ from app.services.moderation_service import ModerationService
 def test_report_creation_is_atomic_with_queue_item(app):
     """
     If ensure_queue_item_for_report raises after the report flush, the report
-    must not be committed — both rows land in the same transaction or neither.
+    must not be committed — create_report owns the transaction boundary and
+    rolls back on any failure so both rows land together or neither does.
+    The caller does not need to rollback explicitly.
     """
     with app.app_context():
         customer = AuthRepository().get_user_by_username("customer")
@@ -25,16 +27,44 @@ def test_report_creation_is_atomic_with_queue_item(app):
             "ensure_queue_item_for_report",
             side_effect=RuntimeError("simulated queue insertion failure"),
         ):
+            raised = False
             try:
                 CommunityService(CommunityRepository()).create_report(
                     customer,
                     {"target_type": "post", "target_id": post.id, "reason_code": "spam", "details": "test"},
                 )
             except RuntimeError:
-                db.session.rollback()
+                raised = True
+            assert raised, "create_report must propagate the underlying failure"
 
         after = db.session.scalar(db.text("SELECT COUNT(*) FROM reports"))
         assert after == before, "Report must not be persisted when queue-item insertion fails"
+
+
+def test_ensure_queue_item_is_idempotent(app):
+    """
+    Re-invoking ensure_queue_item_for_report for the same report must not
+    create duplicate queue items — this keeps retries safe if the first
+    commit succeeded but a downstream step later retries.
+    """
+    with app.app_context():
+        customer = AuthRepository().get_user_by_username("customer")
+        post = CommunityRepository().list_posts()[0]
+        report = CommunityService(CommunityRepository()).create_report(
+            customer,
+            {"target_type": "post", "target_id": post.id, "reason_code": "abuse", "details": "dup-check"},
+        )
+
+        moderation = ModerationService(ModerationRepository())
+        moderation.ensure_queue_item_for_report(report)
+        moderation.ensure_queue_item_for_report(report)
+        db.session.commit()
+
+        count = db.session.scalar(
+            db.text("SELECT COUNT(*) FROM moderation_queue WHERE report_id = :rid"),
+            {"rid": report.id},
+        )
+        assert count == 1
 
 
 def test_report_creates_queue_item_and_reason_required(app):

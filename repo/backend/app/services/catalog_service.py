@@ -165,7 +165,7 @@ class CatalogService:
         content = image.stream.read()
         size_bytes = len(content)
         image.stream.seek(0)
-        validate_image_upload(image.mimetype, size_bytes)
+        validate_image_upload(image.mimetype, content)
 
         suffix = ".jpg" if image.mimetype == "image/jpeg" else ".png"
         safe_name = secure_filename(Path(image.filename).stem) or "dish"
@@ -192,9 +192,23 @@ class CatalogService:
         logger.info("catalog.image_uploaded", dish_id=dish.id, image_id=dish_image.id, size_bytes=size_bytes)
         return dish_image
 
-    def validate_required_options(self, dish_id: str, selected_values: dict[str, list[str] | str]) -> dict:
+    def validate_required_options(
+        self,
+        dish_id: str,
+        selected_values: dict[str, list[str] | str],
+        current_roles: list[str] | None = None,
+    ) -> dict:
         dish = self.repository.get_dish(dish_id)
         if dish is None:
+            raise AppError("not_found", "Dish not found.", 404)
+        # Apply the same visibility rule the public list endpoint enforces:
+        # unpublished or archived dishes must look indistinguishable from
+        # a missing dish to non-managers, so an attacker cannot confirm
+        # that a hidden dish exists or enumerate its pricing through
+        # selection-check. Store Managers keep access so the preview works
+        # from the manager workspace before publishing.
+        is_manager = bool(current_roles) and "Store Manager" in current_roles
+        if not is_manager and (not dish.is_published or dish.archived_at is not None):
             raise AppError("not_found", "Dish not found.", 404)
 
         errors = []

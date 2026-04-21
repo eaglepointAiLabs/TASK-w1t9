@@ -37,14 +37,15 @@ def test_ops_endpoints_reject_non_admin_roles(client):
     assert response.json["code"] == "forbidden"
 
 
-def test_ops_endpoints_and_backup_restore(client, app, tmp_path):
+def test_ops_endpoints_and_backup_restore(file_app, tmp_path):
+    # Use the file-backed seeded database so the post-restore verification —
+    # which probes every core table across auth, catalog, payments, refunds,
+    # reconciliation, moderation, and ops — has the full schema to inspect.
+    client = file_app.test_client()
     csrf_token = login(client, "finance", "Finance#12345")
-    with app.app_context():
-        app.config["BACKUP_DIR"] = tmp_path / "backups"
-        app.config["RESTORE_DIR"] = tmp_path / "restore"
-        db_path = tmp_path / "ops-db.sqlite"
-        db_path.write_text("ops-backup-test", encoding="latin1")
-        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path.as_posix()}"
+    with file_app.app_context():
+        file_app.config["BACKUP_DIR"] = tmp_path / "backups"
+        file_app.config["RESTORE_DIR"] = tmp_path / "restore"
 
     jobs = client.get("/api/admin/ops/jobs?page=1&page_size=1", headers={"Accept": "application/json"})
     assert jobs.status_code == 200

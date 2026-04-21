@@ -138,7 +138,16 @@ class PaymentService:
             callback.payment_transaction_id = transaction.id
             callback.payment_transaction = transaction
             if verification["verified"]:
-                transaction.status = package.get("payload", {}).get("status", transaction.status)
+                payload_status = package.get("payload", {}).get("status")
+                if payload_status is not None:
+                    normalized = str(payload_status).strip().lower()
+                    if normalized not in ALLOWED_CAPTURE_STATUSES:
+                        raise AppError(
+                            "validation_error",
+                            "payload.status must be one of: pending, success, failed.",
+                            400,
+                        )
+                    transaction.status = normalized
                 if transaction.status == "success":
                     transaction.captured_at = utc_now_naive()
                 if transaction.status == "failed":

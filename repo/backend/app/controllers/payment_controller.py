@@ -5,6 +5,7 @@ import json
 from flask import g, jsonify, render_template, request
 
 from app.controllers.pagination import paginate_collection, parse_pagination_args
+from app.controllers.payload_helpers import require_dict_payload
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.payment_repository import PaymentRepository
 from app.services.errors import AppError
@@ -66,7 +67,10 @@ def finance_workspace():
 
 def capture_payment():
     _require_authenticated_user()
-    payload = request.get_json(silent=True) or request.form.to_dict(flat=True)
+    if request.is_json:
+        payload = require_dict_payload()
+    else:
+        payload = request.form.to_dict(flat=True)
     payment = _service().capture_payment(payload, g.current_roles)
     if request.headers.get("HX-Request") == "true":
         payments, keys = _service().list_workspace(g.current_roles)
@@ -99,7 +103,10 @@ def verify_callbacks():
 
 def simulate_jsapi_callback():
     _require_authenticated_user()
-    payload = request.get_json(silent=True) or request.form.to_dict(flat=True)
+    if request.is_json:
+        payload = require_dict_payload()
+    else:
+        payload = request.form.to_dict(flat=True)
     result = _service().simulate_jsapi_callback(payload, g.current_roles)
     status_code = 200 if result["import_result"]["code"] == "ok" else 409
     if request.headers.get("HX-Request") == "true":
@@ -146,14 +153,22 @@ def get_payment(payment_id: str):
 def _load_callback_payload():
     payload = request.get_json(silent=True)
     if payload is not None:
+        if not isinstance(payload, dict):
+            raise AppError("validation_error", "Callback package must be a JSON object.", 400)
         return payload
     if "package_file" in request.files:
         try:
-            return json.loads(request.files["package_file"].read().decode("utf-8"))
+            parsed = json.loads(request.files["package_file"].read().decode("utf-8"))
         except json.JSONDecodeError as exc:
             raise AppError("validation_error", "package_file must contain valid JSON.", 400, {"error": str(exc)}) from exc
+        if not isinstance(parsed, dict):
+            raise AppError("validation_error", "package_file must contain a JSON object.", 400)
+        return parsed
     raw_package = request.form.get("package_json", "{}")
     try:
-        return json.loads(raw_package)
+        parsed = json.loads(raw_package)
     except json.JSONDecodeError as exc:
         raise AppError("validation_error", "package_json must contain valid JSON.", 400, {"error": str(exc)}) from exc
+    if not isinstance(parsed, dict):
+        raise AppError("validation_error", "package_json must contain a JSON object.", 400)
+    return parsed

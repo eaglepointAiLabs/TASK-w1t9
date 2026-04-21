@@ -108,6 +108,86 @@ def test_required_option_selection_check_returns_validation_error(client, app):
     assert response.json["code"] == "required_options_missing"
 
 
+def test_selection_check_hides_unpublished_dish_from_public(client, app):
+    """
+    An unpublished dish must look indistinguishable from a nonexistent one
+    to a non-manager caller. Selection-check must not leak pricing or
+    option config for dishes the public list already hides.
+    """
+    from app.extensions import db
+    from app.repositories.catalog_repository import CatalogRepository
+
+    with app.app_context():
+        dish = CatalogRepository().get_dish_by_slug("signature-beef-noodles")
+        dish_id = dish.id
+        dish.is_published = False
+        db.session.add(dish)
+        db.session.commit()
+
+    _response, csrf_token = login(client, "customer", "Customer#1234")
+    response = client.post(
+        f"/api/dishes/{dish_id}/selection-check",
+        data={"option_spice_level": "mild", "option_noodle_type": "thin"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert response.status_code == 404
+    assert response.json["code"] == "not_found"
+
+
+def test_selection_check_hides_archived_dish_from_public(client, app):
+    """
+    An archived dish (archived_at set) must also 404 for public callers.
+    """
+    from app.extensions import db
+    from app.repositories.catalog_repository import CatalogRepository
+    from app.services.time_utils import utc_now_naive
+
+    with app.app_context():
+        dish = CatalogRepository().get_dish_by_slug("signature-beef-noodles")
+        dish_id = dish.id
+        dish.archived_at = utc_now_naive()
+        db.session.add(dish)
+        db.session.commit()
+
+    _response, csrf_token = login(client, "customer", "Customer#1234")
+    response = client.post(
+        f"/api/dishes/{dish_id}/selection-check",
+        data={"option_spice_level": "mild", "option_noodle_type": "thin"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    assert response.status_code == 404
+    assert response.json["code"] == "not_found"
+
+
+def test_selection_check_allows_store_manager_to_preview_unpublished_dish(client, app):
+    """
+    Store Managers must still be able to run selection-check against
+    unpublished dishes so they can preview the workspace before publishing.
+    """
+    from app.extensions import db
+    from app.repositories.catalog_repository import CatalogRepository
+
+    with app.app_context():
+        dish = CatalogRepository().get_dish_by_slug("signature-beef-noodles")
+        dish_id = dish.id
+        dish.is_published = False
+        db.session.add(dish)
+        db.session.commit()
+
+    _response, csrf_token = login(client, "manager", "Manager#12345")
+    response = client.post(
+        f"/api/dishes/{dish_id}/selection-check",
+        data={"option_spice_level": "mild", "option_noodle_type": "thin"},
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+    # Manager flow reaches the real validator — if the seeded dish's
+    # required options are satisfied, a 200 is expected; otherwise
+    # a 400 "required_options_missing" proves the visibility gate did
+    # not shadow the dish as missing.
+    assert response.status_code in (200, 400)
+    assert response.json["code"] != "not_found"
+
+
 def test_image_validation_rejects_non_png_jpeg(client, app):
     from app.repositories.catalog_repository import CatalogRepository
 
@@ -143,6 +223,32 @@ def test_image_validation_rejects_large_file(client, app):
 
     assert response.status_code == 400
     assert response.json["code"] == "invalid_image_size"
+
+
+def test_image_validation_rejects_spoofed_content_type(client, app):
+    """
+    A file claiming Content-Type: image/jpeg but whose bytes are not a real
+    JPEG (e.g. a plain-text or GIF payload renamed to .jpg) must fail magic-
+    byte validation even though MIME alone would pass.
+    """
+    from app.repositories.catalog_repository import CatalogRepository
+
+    with app.app_context():
+        dish = CatalogRepository().get_dish_by_slug("signature-beef-noodles")
+
+    _response, csrf_token = login(client, "manager", "Manager#12345")
+
+    # werkzeug infers image/jpeg from .jpg; the content is GIF89a bytes.
+    spoofed_bytes = b"GIF89a\x01\x00\x01\x00\x00\x00\x00;"
+    response = client.post(
+        f"/api/manager/dishes/{dish.id}/images",
+        data={"image": (BytesIO(spoofed_bytes), "dish.jpg")},
+        content_type="multipart/form-data",
+        headers={"X-CSRF-Token": csrf_token, "Accept": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json["code"] == "invalid_image_content"
 
 
 def test_manager_bulk_update_queues_and_applies_changes(app):

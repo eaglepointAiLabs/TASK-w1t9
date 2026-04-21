@@ -5,6 +5,7 @@ import json
 from flask import g, jsonify, render_template, request
 
 from app.controllers.pagination import paginate_collection, parse_pagination_args
+from app.controllers.payload_helpers import require_dict_payload
 from app.controllers.ui_helpers import attach_feedback, redirect_anonymous_to_login
 from app.repositories.reconciliation_repository import ReconciliationRepository
 from app.services.errors import AppError
@@ -167,7 +168,10 @@ def get_run(run_id: str):
 
 def resolve_exception(exception_id: str):
     _require_authenticated_user()
-    payload = request.get_json(silent=True) or request.form
+    if request.is_json:
+        payload = require_dict_payload()
+    else:
+        payload = request.form
     exception = _service().resolve_exception(
         exception_id=exception_id,
         action_type=(payload.get("action_type") or "resolve").strip(),
@@ -182,7 +186,10 @@ def resolve_exception(exception_id: str):
 
 
 def _parse_import_payload():
-    json_payload = request.get_json(silent=True) or {}
+    raw_json = request.get_json(silent=True)
+    if raw_json is not None and not isinstance(raw_json, dict):
+        raise AppError("validation_error", "Request body must be a JSON object.", 400)
+    json_payload = raw_json or {}
     if "statement_file" in request.files:
         csv_text = request.files["statement_file"].read().decode("utf-8")
         filename = request.files["statement_file"].filename or ""

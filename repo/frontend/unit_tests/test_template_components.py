@@ -75,3 +75,43 @@ def test_hx_mutation_forms_include_submit_locking_hooks():
     assert "setFormPending(form, false)" in js_text
     assert "form.is-submitting" in css_text
     assert "button:disabled" in css_text
+
+
+def test_hx_get_containers_have_no_overlapping_nested_button_handler():
+    """
+    Regression: a click on a button inside an [hx-get] container must not fire
+    two fetches. The previous implementation bound one handler on the
+    container and a second, duplicate handler on the nested button — clicks
+    bubbled into both. The single container-level handler is the source of
+    truth; the nested binding must stay removed.
+    """
+    js_path = Path(__file__).resolve().parents[2] / "backend" / "app" / "static" / "js" / "htmx-lite.js"
+    js_text = js_path.read_text(encoding="utf-8")
+
+    assert '"[hx-get] button"' not in js_text, (
+        "Duplicate click handler on nested [hx-get] buttons is back — this "
+        "triggers two fetches per click."
+    )
+    # The container-level handler must still resolve 'closest article' and
+    # 'this' correctly so removing the nested binding doesn't break swaps.
+    assert 'targetSelector === "this"' in js_text
+    assert 'targetSelector === "closest article"' in js_text
+
+
+def test_hx_get_templates_do_not_nest_hx_get_on_button_and_container():
+    """
+    Regression: dish_list.html and moderation/queue.html must not declare
+    hx-get on BOTH the container and a nested element. Duplicate hx-get
+    attributes cause the container handler to fire once from bubbling and
+    again from the nested binding.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[2] / "backend" / "app" / "templates"
+    dish_list = (root / "partials" / "dish_list.html").read_text(encoding="utf-8")
+    queue = (root / "moderation" / "queue.html").read_text(encoding="utf-8")
+
+    for source in (dish_list, queue):
+        for match in re.finditer(r"<button\b[^>]*>", source):
+            assert "hx-get" not in match.group(0)
+            assert "hx-post" not in match.group(0)
