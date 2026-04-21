@@ -23,9 +23,7 @@ fullstack/data/*.db
 fullstack/data/uploads/
 fullstack/data/backups/
 fullstack/data/restore-tests/
-/.tmp
 .claude/
-repo/.tmp/
 /README.md
 temp_auto_push.bat
 temp_interactive_push.bat
