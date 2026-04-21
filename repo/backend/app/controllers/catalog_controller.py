@@ -277,8 +277,11 @@ def validate_dish_selection(dish_id: str):
 
 
 def serve_upload(relative_path: str):
-    root = current_app.config["UPLOAD_DIR"].parent
-    return send_from_directory(root, relative_path)
+    # send_from_directory resolves the path with Werkzeug's safe_join, which
+    # raises NotFound for any attempt to escape UPLOAD_DIR via "..", absolute
+    # paths, or symlink chains.  No string-prefix checks are needed — the
+    # filesystem boundary is the only guard required.
+    return send_from_directory(current_app.config["UPLOAD_DIR"], relative_path)
 
 
 def _inflate_payload(payload: dict) -> dict:

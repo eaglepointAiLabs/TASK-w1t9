@@ -11,6 +11,7 @@ from app.models import CartItem, Dish
 from app.repositories.catalog_repository import CatalogRepository
 from app.repositories.order_repository import OrderRepository
 from app.services.catalog_service import CatalogService
+from app.services.catalog_validation import parse_int
 from app.services.errors import AppError
 from app.services.time_utils import utc_now_naive
 
@@ -32,7 +33,7 @@ class OrderService:
     def add_cart_item(self, user_id: str, payload: dict):
         cart = self.repository.get_or_create_cart(user_id)
         dish_id = payload.get("dish_id")
-        quantity = int(payload.get("quantity", 1))
+        quantity = parse_int(payload.get("quantity", 1), "quantity")
         if quantity < 1:
             raise AppError("validation_error", "Quantity must be at least 1.", 400)
 
@@ -58,7 +59,7 @@ class OrderService:
         if item is None:
             raise AppError("not_found", "Cart item not found.", 404)
 
-        quantity = int(payload.get("quantity", item.quantity))
+        quantity = parse_int(payload.get("quantity", item.quantity), "quantity")
         if quantity < 1:
             raise AppError("validation_error", "Quantity must be at least 1.", 400)
         selected_options = payload.get("selected_options")

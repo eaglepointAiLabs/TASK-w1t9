@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal, InvalidOperation
 
 from app.services.errors import AppError
@@ -20,6 +20,13 @@ def parse_price(value: str | int | float | Decimal | None, field_name: str) -> D
     if price < 0:
         raise AppError("validation_error", f"{field_name} must be zero or greater.", 400)
     return price.quantize(Decimal("0.01"))
+
+
+def parse_int(value, field_name: str) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise AppError("validation_error", f"{field_name} must be a valid integer.", 400)
 
 
 def normalize_slug(value: str) -> str:
@@ -54,18 +61,26 @@ def validate_dish_payload(payload: dict) -> None:
         raise AppError("validation_error", "Dish name is required.", 400)
 
     parse_price(payload.get("base_price"), "base_price")
-    if int(payload.get("stock_quantity", 0)) < 0:
+    if parse_int(payload.get("stock_quantity", 0), "stock_quantity") < 0:
         raise AppError("validation_error", "stock_quantity must be zero or greater.", 400)
 
     for window in payload.get("availability_windows", []):
         day = window.get("day_of_week")
-        if day is None or int(day) < 0 or int(day) > 6:
+        if day is None:
+            raise AppError("validation_error", "day_of_week must be between 0 and 6.", 400)
+        day_int = parse_int(day, "day_of_week")
+        if not 0 <= day_int <= 6:
             raise AppError("validation_error", "day_of_week must be between 0 and 6.", 400)
         start_time = window.get("start_time")
         end_time = window.get("end_time")
         if not start_time or not end_time:
             raise AppError("validation_error", "Availability windows require start_time and end_time.", 400)
-        if start_time >= end_time:
+        try:
+            start_t = time.fromisoformat(str(start_time))
+            end_t = time.fromisoformat(str(end_time))
+        except ValueError:
+            raise AppError("validation_error", "Availability window times must be valid HH:MM time strings.", 400)
+        if start_t >= end_t:
             raise AppError("validation_error", "Availability window start_time must be before end_time.", 400)
 
     for option in payload.get("options", []):
@@ -75,8 +90,10 @@ def validate_dish_payload(payload: dict) -> None:
         if not values:
             raise AppError("validation_error", "Each option group requires at least one value.", 400)
         for rule in option.get("rules", []):
-            min_select = int(rule.get("min_select", 0))
-            max_select = int(rule.get("max_select", 1))
+            if not (rule.get("rule_type") or "").strip():
+                raise AppError("validation_error", "Option rule_type is required.", 400)
+            min_select = parse_int(rule.get("min_select", 0), "min_select")
+            max_select = parse_int(rule.get("max_select", 1), "max_select")
             if min_select < 0 or max_select < 1 or min_select > max_select:
                 raise AppError("validation_error", "Option rule selection bounds are invalid.", 400)
         for value in values:

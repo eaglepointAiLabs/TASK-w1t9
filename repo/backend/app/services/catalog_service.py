@@ -17,6 +17,7 @@ from app.services.ops_service import MenuCache
 from app.services.catalog_validation import (
     normalize_slug,
     parse_bool,
+    parse_int,
     parse_iso_datetime,
     parse_price,
     validate_dish_payload,
@@ -178,7 +179,7 @@ class CatalogService:
         dish_image = self.repository.add_image(
             dish_id=dish.id,
             filename=image.filename,
-            stored_path=str(destination_path.relative_to(upload_root.parent)),
+            stored_path=str(destination_path.relative_to(upload_root)),
             mime_type=image.mimetype,
             size_bytes=size_bytes,
             alt_text=dish.name,
@@ -244,8 +245,8 @@ class CatalogService:
                 base_price=parse_price(payload.get("base_price"), "base_price"),
                 is_published=parse_bool(payload.get("is_published", False)),
                 is_sold_out=parse_bool(payload.get("is_sold_out", False)),
-                stock_quantity=int(payload.get("stock_quantity", 0)),
-                sort_order=int(payload.get("sort_order", 0)),
+                stock_quantity=parse_int(payload.get("stock_quantity", 0), "stock_quantity"),
+                sort_order=parse_int(payload.get("sort_order", 0), "sort_order"),
             )
         else:
             dish.category_id = category.id if category else None
@@ -254,8 +255,8 @@ class CatalogService:
             dish.description = (payload.get("description") or "").strip()
             dish.base_price = parse_price(payload.get("base_price"), "base_price")
             dish.is_sold_out = parse_bool(payload.get("is_sold_out", False))
-            dish.stock_quantity = int(payload.get("stock_quantity", dish.stock_quantity))
-            dish.sort_order = int(payload.get("sort_order", 0))
+            dish.stock_quantity = parse_int(payload.get("stock_quantity", dish.stock_quantity), "stock_quantity")
+            dish.sort_order = parse_int(payload.get("sort_order", 0), "sort_order")
             if "archived" in payload:
                 dish.archived_at = utc_now_naive() if parse_bool(payload.get("archived")) else None
             db.session.add(dish)
@@ -271,11 +272,16 @@ class CatalogService:
 
         windows = []
         for window in payload.get("availability_windows", []):
+            try:
+                start_t = time.fromisoformat(window["start_time"])
+                end_t = time.fromisoformat(window["end_time"])
+            except (ValueError, KeyError):
+                raise AppError("validation_error", "Availability window times must be valid HH:MM time strings.", 400)
             windows.append(
                 {
-                    "day_of_week": int(window["day_of_week"]),
-                    "start_time": time.fromisoformat(window["start_time"]),
-                    "end_time": time.fromisoformat(window["end_time"]),
+                    "day_of_week": parse_int(window["day_of_week"], "day_of_week"),
+                    "start_time": start_t,
+                    "end_time": end_t,
                     "is_enabled": bool(window.get("is_enabled", True)),
                 }
             )
@@ -288,23 +294,23 @@ class CatalogService:
                     "name": option["name"].strip(),
                     "code": normalize_slug(option.get("code") or option["name"]).replace("-", "_"),
                     "display_type": option.get("display_type", "single_select"),
-                    "sort_order": int(option.get("sort_order", 0)),
+                    "sort_order": parse_int(option.get("sort_order", 0), "sort_order"),
                     "values": [
                         {
                             "label": item["label"].strip(),
                             "value_code": normalize_slug(item.get("value_code") or item["label"]).replace("-", "_"),
                             "price_delta": parse_price(item.get("price_delta", 0), "price_delta"),
                             "is_available": bool(item.get("is_available", True)),
-                            "sort_order": int(item.get("sort_order", 0)),
+                            "sort_order": parse_int(item.get("sort_order", 0), "sort_order"),
                         }
                         for item in option.get("values", [])
                     ],
                     "rules": [
                         {
-                            "rule_type": rule["rule_type"],
+                            "rule_type": (rule.get("rule_type") or "").strip(),
                             "is_required": bool(rule.get("is_required", False)),
-                            "min_select": int(rule.get("min_select", 0)),
-                            "max_select": int(rule.get("max_select", 1)),
+                            "min_select": parse_int(rule.get("min_select", 0), "min_select"),
+                            "max_select": parse_int(rule.get("max_select", 1), "max_select"),
                         }
                         for rule in option.get("rules", [])
                     ],

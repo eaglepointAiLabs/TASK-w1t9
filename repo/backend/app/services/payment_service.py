@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import structlog
 from flask import current_app
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.repositories.payment_repository import PaymentRepository
@@ -17,6 +18,8 @@ from app.services.time_utils import ensure_utc_naive, serialize_utc_datetime, ut
 
 
 logger = structlog.get_logger(__name__)
+
+ALLOWED_CAPTURE_STATUSES = {"pending", "success", "failed"}
 
 
 class PaymentService:
@@ -53,19 +56,47 @@ class PaymentService:
         order = self.repository.get_order(payload.get("order_id"))
         if order is None:
             raise AppError("not_found", "Order not found.", 404)
+
+        reference = (payload.get("transaction_reference") or "").strip()
+        if not reference:
+            raise AppError("validation_error", "transaction_reference is required.", 400)
+
+        if self.repository.get_transaction_by_reference(reference) is not None:
+            raise AppError(
+                "duplicate_transaction",
+                "A payment with this transaction_reference already exists.",
+                409,
+            )
+
+        status = (payload.get("status") or "pending").strip().lower()
+        if status not in ALLOWED_CAPTURE_STATUSES:
+            raise AppError(
+                "validation_error",
+                "status must be one of: pending, success, failed.",
+                400,
+            )
+
         amount = parse_price(payload.get("capture_amount") or order.total_amount, "capture_amount")
-        transaction = self.repository.create_transaction(
-            order_id=order.id,
-            transaction_reference=(payload.get("transaction_reference") or "").strip(),
-            channel=(payload.get("channel") or "offline_wechat_simulator").strip(),
-            capture_amount=amount,
-            currency=(payload.get("currency") or "USD").strip().upper(),
-            status=(payload.get("status") or "pending").strip(),
-            source=(payload.get("source") or "local_capture").strip(),
-            captured_at=utc_now_naive() if payload.get("status") == "success" else None,
-            failure_reason=(payload.get("failure_reason") or "").strip(),
-        )
-        db.session.commit()
+        try:
+            transaction = self.repository.create_transaction(
+                order_id=order.id,
+                transaction_reference=reference,
+                channel=(payload.get("channel") or "offline_wechat_simulator").strip(),
+                capture_amount=amount,
+                currency=(payload.get("currency") or "USD").strip().upper(),
+                status=status,
+                source=(payload.get("source") or "local_capture").strip(),
+                captured_at=utc_now_naive() if status == "success" else None,
+                failure_reason=(payload.get("failure_reason") or "").strip(),
+            )
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            raise AppError(
+                "duplicate_transaction",
+                "A payment with this transaction_reference already exists.",
+                409,
+            )
         logger.info("payments.capture_created", order_id=order.id, payment_id=transaction.id, reference=transaction.transaction_reference)
         return transaction
 
@@ -126,15 +157,19 @@ class PaymentService:
                 "payment_id": transaction.id if transaction else None,
             },
         }
-        existing = self.repository.get_any_dedup_key(reference)
-        self.repository.upsert_dedup_key(
-            existing,
-            transaction_reference=reference,
-            callback_id=callback.id,
-            payload_hash=callback.payload_hash,
-            expires_at=utc_now_naive() + timedelta(hours=24),
-            response_json=json.dumps(response),
-        )
+        # Only cache verified callbacks.  A rejected entry must never occupy the
+        # dedup slot — doing so would permanently block a subsequent valid callback
+        # for the same reference until the TTL expires.
+        if verification["verified"]:
+            existing = self.repository.get_any_dedup_key(reference)
+            self.repository.upsert_dedup_key(
+                existing,
+                transaction_reference=reference,
+                callback_id=callback.id,
+                payload_hash=callback.payload_hash,
+                expires_at=utc_now_naive() + timedelta(hours=24),
+                response_json=json.dumps(response),
+            )
         db.session.commit()
         logger.info(
             "payments.callback_imported",
@@ -158,6 +193,8 @@ class PaymentService:
         key = self.repository.get_signing_key(key_id)
         if key is None:
             raise AppError("not_found", "Signing key not found.", 404)
+        if not key.is_active:
+            raise AppError("validation_error", "Signing key is revoked and cannot be used for simulation.", 400)
 
         occurred_at = (payload.get("occurred_at") or serialize_utc_datetime(utc_now_naive()) or "").strip()
         callback_payload = {
@@ -204,6 +241,9 @@ class PaymentService:
         payload_hash = self.security.payload_hash(payload)
         if key is None:
             return {"verified": False, "message": "Unknown signing key.", "payload_hash": payload_hash}
+
+        if not key.is_active:
+            return {"verified": False, "message": "Signing key is revoked.", "payload_hash": payload_hash}
 
         event_time = self.security.parse_event_time(payload.get("occurred_at"))
         if event_time is None:

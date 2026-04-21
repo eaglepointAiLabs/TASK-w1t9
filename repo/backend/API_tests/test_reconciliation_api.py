@@ -166,3 +166,81 @@ def test_reconciliation_resolution_flow(client, app):
     )
     assert run_response.status_code == 200
     assert run_response.json["data"]["exceptions"][0]["status"] == "resolved"
+
+
+def test_reconciliation_flags_currency_mismatch(client, app):
+    """
+    When the CSV row currency differs from the captured payment currency the
+    row must be classified as an exception with exception_type='currency_mismatch',
+    not silently matched.
+    """
+    finance_csrf = login(client, "finance", "Finance#12345")
+    with app.app_context():
+        order_id = db.session.execute(db.text("select id from orders limit 1")).scalar()
+
+    client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-recon-currency-mismatch",
+            "capture_amount": "10.25",
+            "status": "success",
+            "currency": "USD",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+
+    # Statement says EUR, local record is USD — must raise an exception
+    import_response = client.post(
+        "/api/finance/reconciliation/import",
+        json={
+            "source_name": "terminal_csv",
+            "statement_csv": (
+                "transaction_reference,amount,currency,status\n"
+                "api-recon-currency-mismatch,10.25,EUR,success\n"
+            ),
+            "filename": "terminal_eur.csv",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert import_response.status_code == 201
+    data = import_response.json["data"]
+    assert data["exception_count"] == 1
+    assert data["matched_rows"] == 0
+    assert data["exceptions"][0]["exception_type"] == "currency_mismatch"
+
+
+def test_reconciliation_matching_currency_not_flagged(client, app):
+    """Rows where currency, amount, and status all match must not raise an exception."""
+    finance_csrf = login(client, "finance", "Finance#12345")
+    with app.app_context():
+        order_id = db.session.execute(db.text("select id from orders limit 1")).scalar()
+
+    client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-recon-currency-ok",
+            "capture_amount": "10.25",
+            "status": "success",
+            "currency": "USD",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+
+    import_response = client.post(
+        "/api/finance/reconciliation/import",
+        json={
+            "source_name": "terminal_csv",
+            "statement_csv": (
+                "transaction_reference,amount,currency,status\n"
+                "api-recon-currency-ok,10.25,USD,success\n"
+            ),
+            "filename": "terminal_ok.csv",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert import_response.status_code == 201
+    data = import_response.json["data"]
+    assert data["exception_count"] == 0
+    assert data["matched_rows"] == 1

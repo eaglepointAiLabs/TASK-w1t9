@@ -375,3 +375,230 @@ def test_jsapi_simulator_endpoint_imports_callback(app):
     assert get_response.status_code == 200
     assert get_response.json["data"]["status"] == "success"
     assert any(callback["key_id"] == "simulator-v1" for callback in get_response.json["data"]["callbacks"])
+
+
+def test_rejected_callback_does_not_block_subsequent_valid_callback(app):
+    """
+    A rejected callback (bad signature) must not occupy the dedup slot.
+    A subsequent import with a valid signature for the same reference must
+    succeed and update the transaction to 'success'.
+    """
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-idempotency")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+    capture_response = finance_client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-pay-idempotency",
+            "capture_amount": "10.25",
+            "status": "pending",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert capture_response.status_code == 201
+    payment_id = capture_response.json["data"]["id"]
+
+    # First import: rejected (wrong secret) — must not cache a rejected response
+    bad_package = signed_package("wrong-secret", "simulator-v1", "api-pay-idempotency", "2026-03-28T10:00:00+00:00")
+    rejected_resp = finance_client.post(
+        "/api/payments/callbacks/import",
+        json=bad_package,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert rejected_resp.status_code == 409
+    assert rejected_resp.json["code"] == "callback_rejected"
+
+    # Second import: valid signature — must not be blocked by the rejected entry
+    valid_package = signed_package("simulator-secret-v1", "simulator-v1", "api-pay-idempotency", "2026-03-28T10:00:00+00:00")
+    valid_resp = finance_client.post(
+        "/api/payments/callbacks/import",
+        json=valid_package,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert valid_resp.status_code == 200
+    assert valid_resp.json["code"] == "ok"
+
+    # Transaction must now reflect the successful callback
+    payment_resp = finance_client.get(f"/api/payments/{payment_id}", headers={"Accept": "application/json"})
+    assert payment_resp.status_code == 200
+    assert payment_resp.json["data"]["status"] == "success"
+
+
+def test_duplicate_transaction_reference_returns_conflict(app):
+    """
+    Submitting capture_payment twice with the same transaction_reference must
+    return 409 duplicate_transaction — not a raw 500 IntegrityError.
+    """
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-dup-ref")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+
+    capture_payload = {
+        "order_id": order_id,
+        "transaction_reference": "api-pay-dup-ref",
+        "capture_amount": "10.25",
+        "status": "pending",
+    }
+
+    first = finance_client.post(
+        "/api/payments/capture",
+        json=capture_payload,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert first.status_code == 201
+
+    second = finance_client.post(
+        "/api/payments/capture",
+        json=capture_payload,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert second.status_code == 409
+    assert second.json["code"] == "duplicate_transaction"
+
+
+def test_capture_payment_requires_transaction_reference(app):
+    """
+    Omitting transaction_reference must return 400 validation_error.
+    """
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-no-ref")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+
+    resp = finance_client.post(
+        "/api/payments/capture",
+        json={"order_id": order_id, "capture_amount": "10.25", "status": "pending"},
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert resp.status_code == 400
+    assert resp.json["code"] == "validation_error"
+
+
+
+def test_revoked_signing_key_rejected_in_callback_import(app):
+    """
+    A callback signed with a revoked key (is_active=False) must be rejected.
+    The dedup slot must not be written, so a subsequent valid submission
+    from a live key can still succeed.
+    """
+    from sqlalchemy import select
+    from app.models import GatewaySigningKey
+
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-revoked-key")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+    finance_client.post(
+        "/api/payments/capture",
+        json={
+            "order_id": order_id,
+            "transaction_reference": "api-pay-revoked-key",
+            "capture_amount": "10.25",
+            "status": "pending",
+        },
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+
+    # Revoke simulator-v1 in the database
+    with app.app_context():
+        from app.extensions import db
+        key = db.session.execute(
+            select(GatewaySigningKey).where(GatewaySigningKey.key_id == "simulator-v1")
+        ).scalar_one()
+        key.is_active = False
+        db.session.commit()
+
+    # Callback signed with the now-revoked key must be rejected
+    revoked_package = signed_package(
+        "simulator-secret-v1", "simulator-v1", "api-pay-revoked-key", "2026-03-28T10:00:00+00:00"
+    )
+    resp = finance_client.post(
+        "/api/payments/callbacks/import",
+        json=revoked_package,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert resp.status_code == 409
+    assert resp.json["code"] == "callback_rejected"
+    assert "revoked" in resp.json["data"]["verification_message"].lower()
+
+
+def test_revoked_signing_key_rejected_in_callback_verify(app):
+    """verify_callback_preview must also honour is_active."""
+    from sqlalchemy import select
+    from app.models import GatewaySigningKey
+
+    finance_client = app.test_client()
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+
+    with app.app_context():
+        from app.extensions import db
+        key = db.session.execute(
+            select(GatewaySigningKey).where(GatewaySigningKey.key_id == "simulator-v1")
+        ).scalar_one()
+        key.is_active = False
+        db.session.commit()
+
+    package = signed_package(
+        "simulator-secret-v1", "simulator-v1", "api-pay-revoked-verify", "2026-03-28T10:00:00+00:00"
+    )
+    resp = finance_client.post(
+        "/api/payments/callbacks/verify",
+        json=package,
+        headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+    )
+    assert resp.status_code == 200
+    assert resp.json["data"]["verified"] is False
+    assert "revoked" in resp.json["data"]["message"].lower()
+
+
+def test_invalid_capture_status_returns_400(app):
+    """Capture with an unrecognised status must return 400 validation_error."""
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-bad-status")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+
+    for bad_status in ("processing", "confirmed", "XYZZY"):
+        resp = finance_client.post(
+            "/api/payments/capture",
+            json={
+                "order_id": order_id,
+                "transaction_reference": f"api-pay-bad-status-{bad_status}",
+                "capture_amount": "10.25",
+                "status": bad_status,
+            },
+            headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+        )
+        assert resp.status_code == 400, f"Expected 400 for status={bad_status!r}, got {resp.status_code}"
+        assert resp.json["code"] == "validation_error"
+
+
+def test_valid_capture_statuses_accepted(app):
+    """pending, success, and failed are the only accepted statuses."""
+    customer_client = app.test_client()
+    finance_client = app.test_client()
+
+    order_id = create_order(customer_client, app, checkout_key="payment-api-order-valid-status")
+    finance_csrf = login(finance_client, "finance", "Finance#12345")
+
+    for idx, good_status in enumerate(("pending", "success", "failed")):
+        resp = finance_client.post(
+            "/api/payments/capture",
+            json={
+                "order_id": order_id,
+                "transaction_reference": f"api-pay-valid-status-{idx}",
+                "capture_amount": "10.25",
+                "status": good_status,
+            },
+            headers={"X-CSRF-Token": finance_csrf, "Accept": "application/json"},
+        )
+        assert resp.status_code == 201, f"Expected 201 for status={good_status!r}, got {resp.status_code}"
+        assert resp.json["data"]["status"] == good_status

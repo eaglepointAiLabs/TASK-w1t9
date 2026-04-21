@@ -19,6 +19,23 @@ def _env_flag(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).strip().lower() == "true"
 
 
+# Secrets that appear verbatim in source-controlled files (docker-compose.yml,
+# example envs, test fixtures). Any of these showing up in a production runtime
+# is a hard failure — they are public by definition.
+_KNOWN_WEAK_SECRETS = {
+    "dev-secret-key-change-me",
+    "dev-secret-key-change-me-local-only",
+    "tablepay-local-encryption-key",
+    "dev-local-encryption-secret-change-me",
+    "test-secret-key-for-tablepay-suite",
+    "test-encryption-secret-for-tablepay-suite",
+    "e2e_local_review_secret_key_32_chars_minimum",
+    "e2e_local_review_encryption_key_32_chars",
+    "6f5f4f92f54c4d0cb947bc65f8b2a32a_tablepay_review_session_secret",
+    "1baf2af44c8748c882a33e80914dc701_tablepay_review_encryption_secret",
+}
+
+
 def _is_weak_secret(secret: str | None) -> bool:
     if secret is None:
         return True
@@ -26,13 +43,7 @@ def _is_weak_secret(secret: str | None) -> bool:
     if len(normalized) < 32:
         return True
     lowered = normalized.lower()
-    return lowered in {
-        "dev-secret-key-change-me",
-        "tablepay-local-encryption-key",
-        "dev-local-encryption-secret-change-me",
-        "test-secret-key-for-tablepay-suite",
-        "test-encryption-secret-for-tablepay-suite",
-    }
+    return lowered in _KNOWN_WEAK_SECRETS
 
 
 class Config:
@@ -145,6 +156,14 @@ class ProductionConfig(Config):
         if not config.get("SESSION_COOKIE_SECURE") and not config.get("ALLOW_INSECURE_HTTP"):
             raise RuntimeError(
                 "Production requires SESSION_COOKIE_SECURE=true. Set ALLOW_INSECURE_HTTP=true only for trusted local HTTP review."
+            )
+        if config.get("BOOTSTRAP_SEED_DATA"):
+            raise RuntimeError(
+                "Production must not seed demo data. Unset BOOTSTRAP_SEED_DATA or set BOOTSTRAP_SEED_DATA=false."
+            )
+        if config.get("SHOW_SEEDED_CREDENTIALS"):
+            raise RuntimeError(
+                "Production must not expose seeded credentials. Set SHOW_SEEDED_CREDENTIALS=false."
             )
 
 

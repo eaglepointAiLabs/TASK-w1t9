@@ -85,7 +85,12 @@ class ReconciliationService:
                 payment = payments[0]
                 details["payment_status"] = payment.status
                 details["payment_amount"] = f"{payment.capture_amount:.2f}"
-                if payment.capture_amount != amount:
+                details["payment_currency"] = payment.currency
+                if payment.currency.upper() != currency:
+                    match_status = "exception"
+                    exception_type = "currency_mismatch"
+                    details["reason"] = "Terminal currency does not match local transaction currency."
+                elif payment.capture_amount != amount:
                     match_status = "exception"
                     exception_type = "amount_mismatch"
                     details["reason"] = "Terminal amount does not match local capture amount."

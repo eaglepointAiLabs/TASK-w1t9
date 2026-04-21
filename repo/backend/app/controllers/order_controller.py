@@ -151,7 +151,10 @@ def get_order(order_id: str):
 def _inflate_payload(payload):
     data = payload.to_dict(flat=True)
     if "selected_options" in data and isinstance(data["selected_options"], str):
-        data["selected_options"] = json.loads(data["selected_options"] or "{}")
+        try:
+            data["selected_options"] = json.loads(data["selected_options"] or "{}")
+        except json.JSONDecodeError as exc:
+            raise AppError("validation_error", "selected_options must contain valid JSON.", 400) from exc
     else:
         selected = {}
         for key in payload:
